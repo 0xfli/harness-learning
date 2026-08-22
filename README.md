@@ -11,11 +11,12 @@ adapter whose every streamed delta becomes an event — so the reply is not just
 rendered, it is recorded — a conversation column that reads those deltas back
 as speech, typewriter and all, without holding a single character of it, and a
 third column showing the request itself: the same events folded into the
-messages a provider is handed, byte for byte. There is no agent loop and no
-tools yet.
+messages a provider is handed, byte for byte. The log is written to disk as it
+grows and replayed on startup, so the session outlives the process. There is no
+agent loop and no tools yet.
 
 ```
-packages/core/session          The log. Pure; knows nothing about HTTP.
+packages/core/session          The log, and the journal that outlives the process.
 packages/core/llm              Provider vocabulary and adapters. Knows nothing about the log.
 packages/core/exchange         Runs a model and writes down every delta of what it said.
 packages/client/session-feed   The replica. Knows about the feed, not about React.
@@ -121,6 +122,45 @@ pnpm dev
 | `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.       |
 | `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                            |
 | `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.      |
+| `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.        |
+
+## Kill it and carry on
+
+Now the part the first six steps were for. With a conversation on screen, kill
+the server outright — `Ctrl-C`, or `kill -9` if you want to be sure no cleanup
+runs — and start it again:
+
+```bash
+pnpm dev:server
+```
+
+Refresh the page. The conversation is there, every chunk with its original
+timestamp, and the next thing you type continues it. Nothing was rehydrated,
+because there is nothing to rehydrate: the file is the log, and the
+conversation, the request and the panels are folded out of it exactly as they
+were a moment ago.
+
+The file is worth looking at. One event per line, in order:
+
+```bash
+wc -l .harness/session.jsonl
+jq -r 'select(.type == "user/message") | .data.text' .harness/session.jsonl
+```
+
+What is _not_ in it is the point: no conversation, no message array, no
+snapshot of anything derived. A snapshot restores a session perfectly under the
+code that wrote it and then goes stale the first time a new event type matters —
+the fact it needed was dropped before the process exited, and no migration
+brings it back. See [`docs/adr/0007`](./docs/adr/0007-the-log-is-the-file.md),
+and the deliberate mistake kept runnable in
+`packages/core/exchange/test/frozen-snapshot.test.ts`.
+
+A process killed mid-write leaves a half-finished last line. Startup drops it,
+truncates the file to the last complete record, and says so — a record that was
+still being written never happened, and the prefix in front of it is untouched.
+`seq` then continues from the restored length, so no two facts ever answer to
+one number. `apps/dev-server/test/restart.test.ts` proves all three against a
+process actually killed with `SIGKILL`.
 
 ## What the model sees
 
@@ -193,6 +233,24 @@ unobserve()
 deep-freezes the event, commits it, and only then notifies observers. Events are
 immutable, so nothing you hand out can be used to rewrite history. Appending
 from inside an observer is rejected rather than silently re-entering.
+
+To keep a log across restarts, restore it from a journal instead:
+
+```ts
+import { restoreSession } from '@harness/session/journal'
+
+const { log, close } = restoreSession({ path: '.harness/session.jsonl' })
+
+log.length // however many events the last process left behind
+log.append('demo/hello', { message: 'and one more' }) // seq continues from there
+close()
+```
+
+That is the whole of it. The journal is attached as the log's first observer, so
+every event is on disk before any client hears its `seq`, and a damaged tail is
+truncated and reported at startup rather than carried forward. `node:fs` lives
+behind the `/journal` entry point alone — `@harness/session` itself stays
+browser-safe.
 
 ## Recording an exchange in code
 
