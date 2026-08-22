@@ -11,7 +11,11 @@ import type { MountedInspector } from './helpers/inspector.tsx'
  * @param clientHeight - how much of it pretends to be visible.
  * @returns the scrolling element.
  */
-function withViewport(view: MountedInspector, scrollHeight = 1000, clientHeight = 200): HTMLElement {
+function withViewport(
+  view: MountedInspector,
+  scrollHeight = 1000,
+  clientHeight = 200,
+): HTMLElement {
   const body = view.container.querySelector('.panel-body')
   if (body === null) throw new Error('the event stream has no body')
   Object.defineProperty(body, 'scrollHeight', { value: scrollHeight, configurable: true })
@@ -40,6 +44,16 @@ describe('the event stream tail', () => {
 
     // Reading history is the one thing an auto-scrolling log makes impossible.
     expect(body.scrollTop).toBe(0)
+  })
+
+  it('opens at the bottom when history is already there', () => {
+    // A refresh replays the whole log at once: one render, many rows.
+    const view = mountInspector()
+    const body = withViewport(view)
+
+    view.send(wireEvent(0), wireEvent(1), wireEvent(2), wireEvent(3))
+
+    expect(body.scrollTop).toBe(1000)
   })
 
   it('resumes when the reader comes back to the bottom', () => {

@@ -40,6 +40,10 @@ export function useTailFollow(revision: number): TailFollow {
   // scroll position is not something the page renders, and re-rendering the
   // list to remember where it was scrolled would be circular.
   const pinned = useRef(true)
+  // The revision this hook has already scrolled for. Starts at a value no
+  // caller can pass, so a container that mounts with content already in it
+  // opens at the bottom.
+  const seen = useRef(-1)
 
   const onScroll = useCallback(() => {
     const container = ref.current
@@ -52,7 +56,12 @@ export function useTailFollow(revision: number): TailFollow {
   // the list never visibly lurches.
   useLayoutEffect(() => {
     const container = ref.current
-    if (container === null || !pinned.current) return
+    // Only growth moves the view. An effect that runs for any other reason —
+    // a remount, StrictMode's double invocation — must not yank the reader
+    // back down.
+    if (container === null || revision === seen.current) return
+    seen.current = revision
+    if (!pinned.current) return
     container.scrollTop = container.scrollHeight
   }, [revision])
 
