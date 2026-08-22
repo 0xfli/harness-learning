@@ -27,6 +27,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core/session
 
+  packages/client/session-feed:
+    dependencies:
+      '@harness/session':
+        specifier: workspace:*
+        version: link:../../core/session
+
   packages/core/session: {}
 
 packages:

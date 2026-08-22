@@ -1,0 +1,13 @@
+{
+  "name": "@harness/session-feed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Client half of the feed: holds the events received so far and hands them out as a cached snapshot.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@harness/session": "workspace:*"
+  }
+}

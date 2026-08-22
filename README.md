@@ -5,12 +5,13 @@ Building a coding agent harness from scratch, one step at a time.
 
 ## What exists today
 
-An append-only session event log and an SSE feed over it. There is no agent and
-no UI yet — `curl` is the demo.
+An append-only session event log, an SSE feed over it, and a browser-side
+replica of that feed. There is no agent and no UI yet — `curl` is the demo.
 
 ```
-packages/core/session   The log. Pure; knows nothing about HTTP.
-apps/dev-server         HTTP front door: an SSE feed you can curl.
+packages/core/session          The log. Pure; knows nothing about HTTP.
+packages/client/session-feed   The replica. Knows about the feed, not about React.
+apps/dev-server                HTTP front door: an SSE feed you can curl.
 ```
 
 See [`CONTEXT.md`](./CONTEXT.md) for the vocabulary and [`docs/adr/`](./docs/adr)
@@ -70,6 +71,24 @@ unobserve()
 deep-freezes the event, commits it, and only then notifies observers. Events are
 immutable, so nothing you hand out can be used to rewrite history. Appending
 from inside an observer is rejected rather than silently re-entering.
+
+## Reading the feed from a client
+
+```ts
+import { createSessionFeed } from '@harness/session-feed'
+
+const feed = createSessionFeed({ url: '/events' })
+
+feed.events.subscribe(() => {
+  console.log(feed.events.getSnapshot().length, feed.status.getSnapshot())
+})
+```
+
+`events` and `status` are `{ subscribe, getSnapshot }` pairs — the shape React's
+`useSyncExternalStore` asks for, with no React in the package. `getSnapshot`
+returns the same frozen array until the log actually grows; see
+[`docs/adr/0002`](./docs/adr/0002-snapshot-identity-is-the-contract.md) for why
+that identity is the whole contract.
 
 ## Scripts
 
