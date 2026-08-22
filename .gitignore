@@ -4,3 +4,8 @@ coverage/
 *.log
 .harness/
 .DS_Store
+
+# Keys live here. `.env.example` is the committed template.
+.env
+.env.*
+!.env.example
