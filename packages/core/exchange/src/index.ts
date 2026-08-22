@@ -10,7 +10,13 @@
 
 export { recordExchange, replayChunks } from './exchange.ts'
 export type { ExchangeOptions } from './exchange.ts'
-export { modelMessages } from './messages.ts'
+export { deriveMessages, MESSAGE_RULES } from './messages.ts'
+export type { MessageRule } from './messages.ts'
+// The vocabulary of what a model is shown. Re-exported because it is the
+// return type of `deriveMessages`, so anything that reads the projection — the
+// inspector's right-hand column, above all — needs the words for it without
+// taking a dependency on the provider adapters.
+export type { MessageRole, ModelMessage } from '@harness/llm'
 export { EXCHANGE_EVENT_TYPES } from './types.ts'
 export type {
   AssistantChunkData,

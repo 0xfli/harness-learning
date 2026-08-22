@@ -1,8 +1,8 @@
-# ADR-0006 — Tint, elevation and motion are scales, and the palette pays for the first one
+# ADR-0007 — Tint, elevation and motion are scales, and the palette pays for the first one
 
 - **Status**: accepted
 - **Date**: 2026-08-22
-- **Refs**: #46, ADR-0003
+- **Refs**: #46, #49, ADR-0003
 
 ## Context
 

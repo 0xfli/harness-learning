@@ -697,6 +697,49 @@ body {
 }
 
 /*
+ * The model's view: the request, in the bytes it goes out in.
+ *
+ * A message wears its family colour — the same `--type-user` and
+ * `--type-assistant` the stream and the conversation use — so one turn can be
+ * followed across all three columns by hue alone. The brackets and commas
+ * between them are the array rather than anything anybody said, so they stay
+ * `--faint`.
+ */
+.model-json {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  /* Loose enough that a wrapped message reads as a paragraph rather than a
+   * wall, and the block boundaries stay findable. */
+  line-height: 1.55;
+  /* A message is one long line of JSON. In a third of a screen it has to wrap:
+   * clipping it would hide the half that usually matters, and a horizontal
+   * scrollbar in a column that already scrolls vertically is a maze. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+.model-frame {
+  color: var(--faint);
+}
+
+.model-message[data-role='user'] {
+  color: var(--type-user);
+}
+
+.model-message[data-role='assistant'] {
+  color: var(--type-assistant);
+}
+
+/* Nothing writes a system message yet; the colour is here so the first one
+ * that does is legible rather than inheriting the frame's. */
+.model-message[data-role='system'] {
+  color: var(--type-session);
+}
+
+/*
  * Two things on this page move on their own — the caret under a reply and the
  * ring around a live feed. Both are ambient rather than informative: the
  * caret's state is also in `data-state`, the ring's is also in the word next
