@@ -45,6 +45,26 @@ export type MessageRule = (event: SessionEvent) => ModelMessage | undefined
  * - `assistant/chunk` — a delta is a fact about the process; the assembled
  *   `assistant/message` is the fact about the result. Sending both would show
  *   the model everything twice.
+ * - `assistant/reasoning` — the sharpest case, and the reason this comment is
+ *   worth reading. Reasoning is the most interesting thing the model produced
+ *   and it is logged in full, delta by delta, for the human. It still goes
+ *   nowhere near the next request: it is not something anybody *said*, and
+ *   DeepSeek documents that outside tool use it may be left out of the history
+ *   with no error. The first event type that is deliberately visible to one
+ *   reader and invisible to another.
+ *
+ *   This entry has an expiry date. The moment tool calls arrive, the same
+ *   provider requires the opposite: "if the request carries the `tools`
+ *   parameter, the intermediate assistant's `reasoning_content` must
+ *   participate in the context concatenation and must be passed back to the
+ *   API in all subsequent user interaction turns — even if the model did not
+ *   perform a tool call in that turn. Otherwise the API returns a 400 error."
+ *   Anthropic is stricter still and wants its `thinking` block returned with
+ *   the signature it was issued with. So whoever adds tool calling must come
+ *   back to this table and give the rule a condition, and the symptom of
+ *   forgetting is a 400 on the second turn of any conversation that used a
+ *   tool — a long way from here.
+ *   @see https://api-docs.deepseek.com/guides/thinking_mode/
  * - `assistant/usage` — what a reply cost is a fact about the request, not a
  *   thing anybody said.
  * - `error/stream` — an exchange that never produced an `assistant/message`

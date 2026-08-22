@@ -36,3 +36,38 @@ describe('adapterFromEnv', () => {
     expect(() => adapterFromEnv({ HARNESS_SCRIPT_DELAY_MS: value })).not.toThrow()
   })
 })
+
+describe('reasoning configuration', () => {
+  const provider = { HARNESS_API_KEY: 'secret', HARNESS_MODEL: 'deepseek-v4-pro' }
+
+  it.each(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])(
+    'accepts %s, because some documented provider takes it',
+    (effort) => {
+      expect(() => adapterFromEnv({ ...provider, HARNESS_REASONING: effort })).not.toThrow()
+    },
+  )
+
+  it.each([
+    ['a near miss', 'higher'],
+    ['a plausible invention', 'maximum'],
+    ['the wrong case', 'HIGH'],
+  ])('refuses %s rather than letting the provider 400 on it', (_label, value) => {
+    expect(() => adapterFromEnv({ ...provider, HARNESS_REASONING: value })).toThrow(
+      /HARNESS_REASONING/,
+    )
+  })
+
+  it('leaves the effort alone when unset, so the model keeps its default', () => {
+    expect(() => adapterFromEnv({ ...provider })).not.toThrow()
+  })
+
+  it.each(['enabled', 'disabled'])('accepts thinking=%s', (value) => {
+    expect(() => adapterFromEnv({ ...provider, HARNESS_THINKING: value })).not.toThrow()
+  })
+
+  it('refuses a thinking value that is not the switch', () => {
+    expect(() => adapterFromEnv({ ...provider, HARNESS_THINKING: 'true' })).toThrow(
+      /HARNESS_THINKING/,
+    )
+  })
+})

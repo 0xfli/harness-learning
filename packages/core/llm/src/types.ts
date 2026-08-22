@@ -34,6 +34,15 @@ export interface ModelMessage {
 export type StreamChunk =
   /** A piece of the reply text, in order. Concatenating these is the message. */
   | { readonly type: 'text-delta'; readonly text: string }
+  /**
+   * A piece of the model's reasoning, in order.
+   *
+   * Deliberately not a `text-delta`. Reasoning is not part of the reply: the
+   * concatenation of a reply's text deltas has to equal its message, and
+   * providers reject a request that hands their own reasoning back to them.
+   * Two things arriving down one socket are not therefore one thing.
+   */
+  | { readonly type: 'reasoning-delta'; readonly text: string }
   /** The provider stopped, and why. At most one per stream. */
   | { readonly type: 'finish'; readonly reason: string }
   /** What the request cost, as the provider counted it. */
@@ -41,6 +50,28 @@ export type StreamChunk =
 
 /** The `type` tag of any {@link StreamChunk}. */
 export type StreamChunkType = StreamChunk['type']
+
+/**
+ * How hard the model should think before it answers.
+ *
+ * Named for what it means rather than for one vendor's spelling, because by
+ * now it is not one vendor's idea: OpenAI, DeepSeek, Moonshot, MiniMax and xAI
+ * all take `reasoning_effort` as a top-level string.
+ *
+ * The union is the documented superset, not any one provider's list, and the
+ * lists genuinely differ — DeepSeek's reference gives `low | medium | high |
+ * max`, Qwen's gives `low | medium | xhigh` with no `high` at all. Narrowing
+ * to one of them would be picking a provider, which this package is the wrong
+ * place to do. Nor would it be accurate: asked directly, `deepseek-v4-pro`
+ * accepts all seven, including the three its own docs omit. So the type
+ * catches a typo and the provider decides what it supports, and those are
+ * different jobs done in different places.
+ *
+ * Matches the `openai` SDK's own `Shared.ReasoningEffort` minus `null`.
+ *
+ * @see https://api-docs.deepseek.com/guides/thinking_mode/
+ */
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 /** Knobs that apply to a single request. */
 export interface StreamOptions {

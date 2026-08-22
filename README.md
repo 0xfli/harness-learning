@@ -136,6 +136,8 @@ shell wins, so the one-off above still overrules the file without editing it.
 | `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one.  |
 | `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.        |
 | `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                             |
+| `HARNESS_REASONING`       | Reasoning effort, `none` through `max`. Provider-dependent. |
+| `HARNESS_THINKING`        | `enabled` or `disabled`. Unset lets the model decide.       |
 | `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.       |
 | `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.         |
 | `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist. |
