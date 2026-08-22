@@ -1,6 +1,7 @@
 /**
- * The HTTP front door: an SSE feed of the session log, and a way to append to
- * it. There is no UI yet — `curl` is the demo.
+ * The HTTP front door: an SSE feed of the session log, a way to append to it,
+ * and a way to say something to the model. There is no UI for the last one —
+ * `curl` is the demo, and the browser is the audience.
  *
  * @module
  */
@@ -9,12 +10,17 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { SessionLog } from '@harness/session'
 import type { JsonObject } from '@harness/session'
+import { createScriptedAdapter } from '@harness/llm'
+import type { ModelAdapter } from '@harness/llm'
+import { recordExchange } from '@harness/exchange'
 import { streamSessionLog } from './sse.ts'
 
 /** How to build the server. */
 export interface HarnessServerOptions {
   /** The log to serve. A fresh one is created when omitted. */
   readonly log?: SessionLog
+  /** The model behind `POST /messages`. Defaults to a scripted one. */
+  readonly adapter?: ModelAdapter
   /** Heartbeat interval for SSE connections, in milliseconds. */
   readonly heartbeatMs?: number
 }
@@ -22,6 +28,7 @@ export interface HarnessServerOptions {
 /** A running-capable server plus the log it serves. */
 export interface HarnessServer {
   readonly log: SessionLog
+  readonly adapter: ModelAdapter
   readonly server: Server
   /** Ends every open stream, then stops accepting connections. */
   close(): Promise<void>
@@ -36,14 +43,17 @@ const USAGE = `harness-learning session log
                       Send Last-Event-ID to resume without duplicates.
   GET  /events.json   The same history as a plain JSON array.
   POST /events        Append one event. Body: {"type": "demo/hello", "data": {}}
+  POST /messages      Say something to the model. Body: {"text": "hello"}
+                      Records user/message, one assistant/chunk per delta,
+                      assistant/usage, then a single assistant/message.
   GET  /health        Liveness probe.
 
 Try it:
 
   curl -N http://localhost:8787/events
-  curl -X POST http://localhost:8787/events \\
+  curl -X POST http://localhost:8787/messages \\
     -H 'content-type: application/json' \\
-    -d '{"type":"demo/hello","data":{"from":"curl"}}'
+    -d '{"text":"hello"}'
 `
 
 /**
@@ -54,6 +64,7 @@ Try it:
  */
 export function createHarnessServer(options: HarnessServerOptions = {}): HarnessServer {
   const log = options.log ?? new SessionLog()
+  const adapter = options.adapter ?? createScriptedAdapter()
   const openStreams = new Set<() => void>()
 
   const server = createServer((req, res) => {
@@ -115,6 +126,51 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
         return
       }
 
+      case 'POST /messages': {
+        const body = await readJsonBody(req)
+        if (body === undefined || typeof body !== 'object' || Array.isArray(body)) {
+          sendJson(res, 400, { error: 'body must be a JSON object' })
+          return
+        }
+        const { text } = body as { text?: unknown }
+        if (typeof text !== 'string' || text.trim().length === 0) {
+          sendJson(res, 400, { error: '"text" must be a non-empty string' })
+          return
+        }
+
+        // A client that hangs up should not keep the provider running; the
+        // deltas already recorded stay recorded either way.
+        const controller = new AbortController()
+        req.on('aborted', () => controller.abort())
+
+        try {
+          const result = await recordExchange({
+            log,
+            adapter,
+            text,
+            signal: controller.signal,
+          })
+          sendJson(res, 200, {
+            id: result.id,
+            text: result.text,
+            reason: result.reason,
+            chunks: result.chunks,
+            usage: result.usage ?? null,
+            seq: {
+              userMessage: result.userMessage.seq,
+              assistantMessage: result.assistantMessage.seq,
+            },
+          })
+        } catch (error) {
+          // `error/stream` is already in the log — that is the durable record.
+          // This response is only for the caller that is still waiting.
+          sendJson(res, 502, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+        return
+      }
+
       default:
         sendJson(res, 404, { error: `no route for ${route}` })
     }
@@ -122,6 +178,7 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
 
   return {
     log,
+    adapter,
     server,
     close: async () => {
       for (const closeStream of openStreams) closeStream()

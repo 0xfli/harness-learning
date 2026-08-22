@@ -9,6 +9,8 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@harness/exchange": "workspace:*",
+    "@harness/llm": "workspace:*",
     "@harness/session": "workspace:*"
   },
   "devDependencies": {
