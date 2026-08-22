@@ -140,6 +140,38 @@ shell wins, so the one-off above still overrules the file without editing it.
 | `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.         |
 | `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist. |
 
+### Behind a proxy
+
+Node's `fetch` ignores `http_proxy` and `https_proxy`, which every other tool
+on the machine honours. On a network that routes out through a proxy — and
+especially one where DNS lives proxy-side — that makes the harness the only
+thing that cannot reach the provider, and it says so with the least helpful
+sentence in Node: `fetch failed`.
+
+This is not the harness's problem to solve. Node ships the answer:
+
+```bash
+export NODE_USE_ENV_PROXY=1
+export https_proxy=http://127.0.0.1:7890
+export no_proxy=localhost,127.0.0.1,::1
+pnpm dev
+```
+
+Set these in the shell rather than in `.env`. `.env` is read by the harness,
+after the runtime has already decided how it makes connections; these are read
+by the runtime.
+
+`NODE_USE_ENV_PROXY` needs **Node 22.21 or newer**, or **Node 24 or newer**.
+Older 22.x releases accept the variable and ignore it, which looks exactly like
+having no proxy at all, so check `node -v` before believing it works.
+
+Set `no_proxy` as well, even when everything you talk to is remote. A proxy
+configured for everything is also configured for `127.0.0.1`, so the moment you
+point `HARNESS_BASE_URL` at a model running on your own machine the request
+goes out to the proxy and back — and a proxy that will not relay to loopback
+answers `502 Bad Gateway`, which reads like the provider's fault rather than
+the route's.
+
 ## Kill it and carry on
 
 Now the part the first six steps were for. With a conversation on screen, kill
