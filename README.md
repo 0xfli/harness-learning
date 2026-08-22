@@ -6,11 +6,14 @@ Building a coding agent harness from scratch, one step at a time.
 ## What exists today
 
 An append-only session event log, an SSE feed over it, a browser-side replica
-of that feed, and a session inspector that renders it. There is no agent yet —
-the log is filled by hand with `curl`.
+of that feed, and a session inspector that renders it. On top of that, a model
+adapter whose every streamed delta becomes an event — so the reply is not just
+rendered, it is recorded. There is no agent loop and no tools yet.
 
 ```
 packages/core/session          The log. Pure; knows nothing about HTTP.
+packages/core/llm              Provider vocabulary and adapters. Knows nothing about the log.
+packages/core/exchange         Runs a model and writes down every delta of what it said.
 packages/client/session-feed   The replica. Knows about the feed, not about React.
 apps/dev-server                HTTP front door: an SSE feed you can curl.
 apps/web                       The session inspector: three columns over one log.
@@ -55,6 +58,47 @@ and `assistant/message` read as relatives at a glance.
 Refresh the page. It looks exactly as it did: the client keeps nothing, and the
 server replays the whole log to every new connection.
 
+## Talk to the model
+
+With the inspector open, say something to the model from another terminal:
+
+```bash
+curl -X POST http://localhost:8787/messages \
+  -H 'content-type: application/json' \
+  -d '{"text":"hello"}'
+```
+
+Watch the left column. You get one `user/message`, then a run of
+`assistant/chunk` — one event per delta, arriving a word at a time — then
+`assistant/usage`, then a single `assistant/message` holding the assembled
+reply. Dozens of events for one sentence, which is the point: the streaming
+_process_ is recorded, not merely rendered.
+
+Now refresh. Every chunk is still there, in order, with its original
+timestamps. That is the difference between accumulating the reply in a
+variable and appending each delta as a fact — see
+[`docs/adr/0004`](./docs/adr/0004-the-stream-is-a-fact.md), and the deliberate
+mistake kept runnable in `packages/core/exchange/test/lost-deltas.test.ts`.
+
+No key is needed: the default adapter is scripted, so it streams the same reply
+every time with no network. Point it at a real provider by setting the
+environment instead — anything that speaks the OpenAI chat-completions format
+will do:
+
+```bash
+HARNESS_API_KEY=sk-... \
+HARNESS_MODEL=deepseek-chat \
+HARNESS_BASE_URL=https://api.deepseek.com/v1 \
+pnpm dev
+```
+
+| Variable                  | Effect                                                     |
+| ------------------------- | ---------------------------------------------------------- |
+| `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one. |
+| `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.       |
+| `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                            |
+| `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.      |
+
 ## Or without a browser
 
 The feed is plain SSE, so `curl` is a complete client. You get the full history
@@ -89,6 +133,34 @@ unobserve()
 deep-freezes the event, commits it, and only then notifies observers. Events are
 immutable, so nothing you hand out can be used to rewrite history. Appending
 from inside an observer is rejected rather than silently re-entering.
+
+## Recording an exchange in code
+
+```ts
+import { SessionLog } from '@harness/session'
+import { createScriptedAdapter } from '@harness/llm'
+import { recordExchange, replayChunks } from '@harness/exchange'
+
+const log = new SessionLog()
+const result = await recordExchange({
+  log,
+  adapter: createScriptedAdapter(),
+  text: 'hello',
+})
+
+replayChunks(log.events, result.id) === result.text // always
+```
+
+`recordExchange` appends `user/message` _before_ the request, because the
+messages sent to the provider are projected back out of the log rather than
+threaded through as an argument — the log is the source of truth even for the
+request being built from it. Then one `assistant/chunk` per delta,
+`assistant/usage` when the provider reports it, and `assistant/message` last.
+Last is a guarantee, not an accident: its presence is how anything downstream
+knows the reply is complete.
+
+If the stream dies halfway, the deltas that arrived stay in the log and an
+`error/stream` event says where it stopped. Nothing is ever un-appended.
 
 ## Reading the feed from a client
 

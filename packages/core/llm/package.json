@@ -1,0 +1,10 @@
+{
+  "name": "@harness/llm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provider vocabulary: what a model adapter is, and the chunks it streams.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

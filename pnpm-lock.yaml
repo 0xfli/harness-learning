@@ -35,6 +35,12 @@ importers:
 
   apps/dev-server:
     dependencies:
+      '@harness/exchange':
+        specifier: workspace:*
+        version: link:../../packages/core/exchange
+      '@harness/llm':
+        specifier: workspace:*
+        version: link:../../packages/core/llm
       '@harness/session':
         specifier: workspace:*
         version: link:../../packages/core/session
@@ -112,6 +118,17 @@ importers:
       '@harness/session':
         specifier: workspace:*
         version: link:../../core/session
+
+  packages/core/exchange:
+    dependencies:
+      '@harness/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@harness/session':
+        specifier: workspace:*
+        version: link:../session
+
+  packages/core/llm: {}
 
   packages/core/session: {}
 

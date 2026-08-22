@@ -52,6 +52,28 @@ that is freshly allocated per read says "everything changed" forever — see
 projections; so is the message list a model sees. A projection is recomputed,
 never maintained.
 
+**Adapter** — one provider, reduced to what the harness needs: `stream(messages)
+-> AsyncIterable<StreamChunk>`. Adapters translate a wire format and nothing
+else — they never touch the log. Implemented in `packages/core/llm`.
+
+**Chunk** — one thing that happened while the model was replying, as the
+adapter reports it: a `text-delta`, a `finish`, or a `usage`. A discriminated
+union, so a new kind breaks every exhaustive `switch` until it is handled.
+
+**Delta** — the text carried by one `text-delta` chunk. Recorded verbatim as an
+`assistant/chunk` event; the concatenation of a reply's deltas equals its
+`assistant/message` text, byte for byte. See
+`docs/adr/0004-the-stream-is-a-fact.md`.
+
+**Exchange** — one `user/message` and the reply it produced: the chunks, the
+usage, and the assembled message, all sharing one **message id**. Recorded by
+`recordExchange` in `packages/core/exchange`. `assistant/message` is always
+last, and its presence is what "the reply is complete" means.
+
+**Message id** — ties every event of one exchange together. `seq` orders the
+whole log; the id says which reply a delta belongs to, which is what keeps two
+concurrent replies separable when their chunks interleave.
+
 **Inspector** — the three-column page: the event stream on the left, the
 conversation in the middle, the model's view on the right. Three projections of
 one log; keeping them in agreement is the whole job of a harness. Implemented in
@@ -79,6 +101,10 @@ reason the log is.
 ## Layout
 
 - `packages/core/session` — the log. Pure; knows nothing about HTTP.
+- `packages/core/llm` — provider vocabulary and adapters. Knows nothing about
+  the log.
+- `packages/core/exchange` — the seam between the two: runs a model and records
+  every delta of what it said.
 - `packages/client/session-feed` — the replica. Knows about the feed, not about
   React.
 - `apps/dev-server` — HTTP front door. Knows about the log, not the reverse.
