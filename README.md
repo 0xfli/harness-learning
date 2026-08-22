@@ -8,9 +8,11 @@ Building a coding agent harness from scratch, one step at a time.
 An append-only session event log, an SSE feed over it, a browser-side replica
 of that feed, and a session inspector that renders it. On top of that, a model
 adapter whose every streamed delta becomes an event — so the reply is not just
-rendered, it is recorded — and a conversation column that reads those deltas
-back as speech, typewriter and all, without holding a single character of it.
-There is no agent loop and no tools yet.
+rendered, it is recorded — a conversation column that reads those deltas back
+as speech, typewriter and all, without holding a single character of it, and a
+third column showing the request itself: the same events folded into the
+messages a provider is handed, byte for byte. There is no agent loop and no
+tools yet.
 
 ```
 packages/core/session          The log. Pure; knows nothing about HTTP.
@@ -120,6 +122,43 @@ pnpm dev
 | `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                            |
 | `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.      |
 
+## What the model sees
+
+Now watch the right column while you send a second message. It is not a summary
+of the request — it is the request, the exact JSON the provider is handed:
+
+```json
+[
+  { "role": "user", "content": "hello" },
+  { "role": "assistant", "content": "hi there" },
+  { "role": "user", "content": "and another thing" }
+]
+```
+
+Two things are worth staring at. It does not move while a reply streams: the
+request was settled before the first delta arrived, so the middle column types
+itself out beside a motionless right column. And it grows in one step when
+`assistant/message` lands, because deltas are facts about the process and the
+assembled message is the fact about the result — sending both would show the
+model everything twice.
+
+There is no variable holding that list. `deriveMessages(log)` folds it out of
+the events immediately before every call, the browser folds its own replica
+with the very same function, and the two agree byte for byte — measured from
+the adapter's argument through to the text on screen. Which is why appending
+`user/message` before streaming is not merely tidy: appending is how the
+message reaches the model at all.
+
+That rule has a name — model-visible implies logged — and one consequence worth
+knowing before it surprises you: a reply whose stream died is on screen in the
+middle column and absent from the right one. The log never called it finished,
+so the model is never told it said it. See
+[`docs/adr/0006`](./docs/adr/0006-the-model-view-is-derived.md), and the
+deliberate mistake kept runnable in
+`packages/core/exchange/test/drifting-messages.test.ts` — a `messages` array
+beside the log, agreeing with it in the first test and drifting in the next
+three.
+
 ## Or without a browser
 
 The feed is plain SSE, so `curl` is a complete client. You get the full history
@@ -173,12 +212,12 @@ replayChunks(log.events, result.id) === result.text // always
 ```
 
 `recordExchange` appends `user/message` _before_ the request, because the
-messages sent to the provider are projected back out of the log rather than
-threaded through as an argument — the log is the source of truth even for the
-request being built from it. Then one `assistant/chunk` per delta,
-`assistant/usage` when the provider reports it, and `assistant/message` last.
-Last is a guarantee, not an accident: its presence is how anything downstream
-knows the reply is complete.
+messages sent to the provider are `deriveMessages(log)` — projected back out of
+the log rather than threaded through as an argument, so the log is the source of
+truth even for the request being built from it. Then one `assistant/chunk` per
+delta, `assistant/usage` when the provider reports it, and `assistant/message`
+last. Last is a guarantee, not an accident: its presence is how anything
+downstream knows the reply is complete.
 
 If the stream dies halfway, the deltas that arrived stay in the log and an
 `error/stream` event says where it stopped. Nothing is ever un-appended.
@@ -217,10 +256,14 @@ message id and concatenating them:
 
 ```ts
 const turns = deriveConversation(events) // apps/web/src/conversation.ts
+const messages = deriveMessages(events) // @harness/exchange, same as the server
 ```
 
 A reply that is still streaming is a turn whose fold has not finished. Nothing
-appends to it; the array grew and the same function ran again.
+appends to it; the array grew and the same function ran again. The second line
+is the same one the server runs to build a request, which is the whole reason
+the right column can be trusted: it is not showing you a request, it is
+computing the one that would be made.
 
 ## Scripts
 

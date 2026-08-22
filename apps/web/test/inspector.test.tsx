@@ -25,7 +25,8 @@ describe('the inspector shell', () => {
         panel.getAttribute('aria-label'),
       ),
     ).toEqual(['Event stream', 'Conversation', 'Model view'])
-    // Two of the three read the log now, and the middle one can be written to.
+    // All three columns read the log now, and the middle one can be written
+    // to.
     expect(scope.getByLabelText('Conversation').querySelector('.composer')).not.toBeNull()
     expect(scope.getByLabelText('Model view').textContent).toContain('derived from the same log')
   })
