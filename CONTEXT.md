@@ -35,7 +35,7 @@ then live events, in `seq` order. Implemented in `apps/dev-server/src/sse.ts`.
 owed. The only thing that decides what gets sent, which is what makes "no gaps,
 no duplicates" hold.
 
-**Feed client** — the browser half of the feed: it holds a *replica* of the log
+**Feed client** — the browser half of the feed: it holds a _replica_ of the log
 and exposes it as an external store. Implemented by `createSessionFeed` in
 `packages/client/session-feed`.
 
@@ -44,7 +44,7 @@ the log, or thrown away. It is never edited, never merged, and never a second
 source of truth.
 
 **Snapshot** — the frozen array a feed client hands to its view layer. Its
-*identity* is the signal: the same reference means nothing changed. A snapshot
+_identity_ is the signal: the same reference means nothing changed. A snapshot
 that is freshly allocated per read says "everything changed" forever — see
 `docs/adr/0002-snapshot-identity-is-the-contract.md`.
 

@@ -37,7 +37,11 @@ export class Listeners {
    *   did not.
    */
   emit(onError: (error: unknown) => void): void {
-    for (const listener of [...this.#listeners]) {
+    // Taken before dispatch so a subscriber attached *by* a subscriber starts
+    // at the next change rather than joining this one, exactly as the server's
+    // observer set does.
+    const listeners = [...this.#listeners]
+    for (const listener of listeners) {
       // Unsubscribing mid-dispatch is normal in React — an unmounting
       // component must not be told about a change it can no longer render.
       if (!this.#listeners.has(listener)) continue

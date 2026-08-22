@@ -91,13 +91,14 @@ describe('session feed snapshots', () => {
 
     const snapshot = feed.events.getSnapshot()
     const event = snapshot[0]
+    if (event === undefined) throw new Error('expected the event to be replicated')
 
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(() => {
       ;(event as { seq: number }).seq = 99
     }).toThrow(TypeError)
     expect(() => {
-      ;(event?.data as { message: string }).message = 'never happened'
+      ;(event.data as { message: string }).message = 'never happened'
     }).toThrow(TypeError)
   })
 })
@@ -105,7 +106,7 @@ describe('session feed snapshots', () => {
 describe('session feed subscriptions', () => {
   it('notifies subscribers once per applied event', () => {
     const { feed, transport } = connect()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     feed.events.subscribe(listener)
 
     transport.current().send(wireEvent(0))
@@ -116,7 +117,7 @@ describe('session feed subscriptions', () => {
 
   it('stops notifying once a subscriber detaches', () => {
     const { feed, transport } = connect()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     const unsubscribe = feed.events.subscribe(listener)
 
     transport.current().send(wireEvent(0))
@@ -128,7 +129,7 @@ describe('session feed subscriptions', () => {
 
   it('honours a detach that happens mid-notification', () => {
     const { feed, transport } = connect()
-    const second = vi.fn()
+    const second = vi.fn<() => void>()
     let detachSecond: (() => void) | undefined
     feed.events.subscribe(() => detachSecond?.())
     detachSecond = feed.events.subscribe(second)
@@ -142,7 +143,7 @@ describe('session feed subscriptions', () => {
 
   it('contains a throwing subscriber and keeps the rest running', () => {
     const { feed, transport, errors } = connect()
-    const healthy = vi.fn()
+    const healthy = vi.fn<() => void>()
     feed.events.subscribe(() => {
       throw new Error('render exploded')
     })
@@ -157,8 +158,8 @@ describe('session feed subscriptions', () => {
 
   it('keeps events and status on separate subscriptions', () => {
     const { feed, transport } = connect()
-    const onEvents = vi.fn()
-    const onStatus = vi.fn()
+    const onEvents = vi.fn<() => void>()
+    const onStatus = vi.fn<() => void>()
     feed.events.subscribe(onEvents)
     feed.status.subscribe(onStatus)
 
@@ -191,7 +192,7 @@ describe('session feed status', () => {
 
   it('stays quiet when the status has not changed', () => {
     const { feed, transport } = connect()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     feed.status.subscribe(listener)
 
     transport.current().open()
@@ -204,7 +205,7 @@ describe('session feed status', () => {
 describe('session feed ordering', () => {
   it('ignores an event it already holds', () => {
     const { feed, transport, errors } = connect()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     feed.events.subscribe(listener)
 
     transport.current().send(wireEvent(0))
@@ -282,7 +283,7 @@ describe('session feed frame validation', () => {
     ['null data', '{"seq":0,"type":"demo/hello","time":1,"data":null}'],
   ])('reports and drops a frame with %s', (_label, payload) => {
     const { feed, transport, errors } = connect()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     feed.events.subscribe(listener)
 
     transport.current().deliver(payload)

@@ -21,7 +21,7 @@ to boot a renderer first.
 
 React has a purpose-built answer — `useSyncExternalStore` — and it comes with a
 contract that is easy to violate and expensive to violate. `getSnapshot` must
-return the *same reference* until the data actually changes. The deliberate
+return the _same reference_ until the data actually changes. The deliberate
 mistake for this step is one line:
 
 ```ts
@@ -56,8 +56,8 @@ the past was rewritten, on every single read.
    divergence (a position we already hold coming back with different content,
    which is what a restarted server replays) both mean the array is no longer a
    prefix of the log. Both throw the replica away and rebuild it over a fresh
-   connection, which sends no `Last-Event-ID` and therefore replays from `seq`
-   0. The same event arriving twice is the one benign case and is ignored.
+   connection, which sends no `Last-Event-ID` and therefore replays from `seq` 0.
+   The same event arriving twice is the one benign case and is ignored.
 5. **The wire is validated at the boundary and frozen on the way in.** A frame
    that is not a well-formed event is reported and dropped rather than applied.
    The server hands out frozen events; a replica that handed out mutable ones
