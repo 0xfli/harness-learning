@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@harness/exchange": "workspace:*",
     "@harness/session": "workspace:*",
     "@harness/session-feed": "workspace:*",
     "@heroui/react": "^3.2.4",

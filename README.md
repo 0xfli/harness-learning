@@ -8,7 +8,9 @@ Building a coding agent harness from scratch, one step at a time.
 An append-only session event log, an SSE feed over it, a browser-side replica
 of that feed, and a session inspector that renders it. On top of that, a model
 adapter whose every streamed delta becomes an event — so the reply is not just
-rendered, it is recorded. There is no agent loop and no tools yet.
+rendered, it is recorded — and a conversation column that reads those deltas
+back as speech, typewriter and all, without holding a single character of it.
+There is no agent loop and no tools yet.
 
 ```
 packages/core/session          The log. Pure; knows nothing about HTTP.
@@ -37,9 +39,10 @@ pnpm dev
 ```
 
 That starts the log on `http://localhost:8787` and the inspector on
-`http://localhost:5173`. Open the inspector: three columns, and the left one
-already filled with the seeded history. The feed is proxied through Vite, so
-the page never learns which origin the log lives on.
+`http://localhost:5173`. Open the inspector: three columns, each scrolling on
+its own, and the left one already filled with the seeded history. The middle
+one has a box at the bottom — that is the next section. The feed is proxied
+through Vite, so the page never learns which origin the log lives on.
 
 In another terminal, append a fact and watch every open tab show it at the same
 moment, with nothing polling:
@@ -60,13 +63,31 @@ server replays the whole log to every new connection.
 
 ## Talk to the model
 
-With the inspector open, say something to the model from another terminal:
+Type into the middle column and press enter. Your message appears immediately —
+before any server has heard of it — and the reply types itself out underneath,
+a delta at a time. Then look left: the same conversation, spelled out as one
+`user/message`, a run of `assistant/chunk`, an `assistant/usage`, and a single
+`assistant/message` holding the assembled reply. Two columns, one log.
+
+Nothing in the middle column appends a character to a bubble, and nothing there
+holds a copy of the conversation. Both columns are pure functions of the same
+event array, which is why refreshing mid-reply reproduces exactly what was on
+screen: see [`docs/adr/0005`](./docs/adr/0005-the-conversation-is-a-projection.md).
+
+The same thing works from another terminal, and both tabs show it:
 
 ```bash
 curl -X POST http://localhost:8787/messages \
   -H 'content-type: application/json' \
   -d '{"text":"hello"}'
 ```
+
+Name the exchange yourself if you want to recognise it when it comes back —
+`-d '{"text":"hello","id":"anything-unique"}'`. Every event of it carries that
+id, and sending the same one twice is refused with a `409`. That is how the
+browser shows your message before the server has heard of it and still does not
+show it twice: it picks the name, so the arriving event is the one it is
+already displaying rather than one that merely looks like it.
 
 Watch the left column. You get one `user/message`, then a run of
 `assistant/chunk` — one event per delta, arriving a word at a time — then
@@ -191,6 +212,15 @@ export function useSessionEvents(): readonly SessionEvent[] {
 
 Every panel is a projection of what that returns. No component holds
 conversation or domain data in `useState`, and no component fetches for itself.
+The conversation is the clearest case — one pure fold, grouping chunks by
+message id and concatenating them:
+
+```ts
+const turns = deriveConversation(events) // apps/web/src/conversation.ts
+```
+
+A reply that is still streaming is a turn whose fold has not finished. Nothing
+appends to it; the array grew and the same function ran again.
 
 ## Scripts
 

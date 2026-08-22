@@ -77,7 +77,26 @@ concurrent replies separable when their chunks interleave.
 **Inspector** — the three-column page: the event stream on the left, the
 conversation in the middle, the model's view on the right. Three projections of
 one log; keeping them in agreement is the whole job of a harness. Implemented in
-`apps/web`.
+`apps/web`. Each column scrolls on its own — reading one against another is the
+point, and a single page scrollbar would move all three at once.
+
+**Turn** — one bubble in the conversation: what the human said, or the reply it
+produced. Derived by `deriveConversation` in `apps/web/src/conversation.ts`,
+never stored. An assistant turn is the concatenation of its deltas until
+`assistant/message` arrives with the assembled text, so a reply that is still
+streaming is simply one whose fold has not finished. A turn's key is `role:id`,
+because a **message id** names an exchange and both halves of one carry it.
+
+**Composer** — the box at the bottom of the conversation column. It submits
+through a form action, so "sending" and "that failed" are the action's own
+state rather than flags somebody has to remember to clear, and the request
+stays open for as long as the model is replying.
+
+**Optimistic turn** — the turn a human has said and the log has not confirmed
+yet. Added to the projection by `withOptimistic` and dropped the moment a
+`user/message` with the same id lands. Exact rather than heuristic because the
+client names the exchange before sending it — see
+`docs/adr/0005-the-conversation-is-a-projection.md`.
 
 **Family** — the namespace at the front of an event type: `assistant/chunk` and
 `assistant/message` are both the `assistant` family. The unit the inspector

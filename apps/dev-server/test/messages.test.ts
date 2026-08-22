@@ -140,8 +140,17 @@ describe('POST /messages', () => {
     ['no text', {}],
     ['a blank message', { text: '   ' }],
     ['the wrong type', { text: 42 }],
+    ['a blank id', { text: 'hello', id: '  ' }],
+    ['an id of the wrong type', { text: 'hello', id: 42 }],
   ])('rejects %s without touching the log', async (_label, body) => {
     const response = await say(body)
+
+    expect(response.status).toBe(400)
+    expect(harness.log.length).toBe(0)
+  })
+
+  it('rejects an id too long to be a name', async () => {
+    const response = await say({ text: 'hello', id: 'x'.repeat(129) })
 
     expect(response.status).toBe(400)
     expect(harness.log.length).toBe(0)
@@ -155,6 +164,38 @@ describe('POST /messages', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+
+  describe('when the caller names the exchange', () => {
+    it('writes every event under the id it was given', async () => {
+      // What makes the browser's optimistic turn exact rather than a guess: it
+      // shows the message under an id it chose, and recognises the same id
+      // coming back down the feed. See ADR-0005.
+      const response = await say({ text: 'hello', id: 'chosen-by-the-client' })
+
+      expect(await response.json()).toMatchObject({ id: 'chosen-by-the-client' })
+      expect(harness.log.events.map((event) => event.data['id'])).toEqual(
+        Array<string>(7).fill('chosen-by-the-client'),
+      )
+    })
+
+    it('refuses to reuse one, rather than merging two exchanges', async () => {
+      await say({ text: 'hello', id: 'reused' })
+      const before = harness.log.length
+
+      const response = await say({ text: 'again', id: 'reused' })
+
+      // Two exchanges under one id fold into one turn in every reader
+      // downstream, and nothing can be un-appended.
+      expect(response.status).toBe(409)
+      expect(harness.log.length).toBe(before)
+    })
+
+    it('still names it itself when the caller does not', async () => {
+      const body = (await (await say({ text: 'hello' })).json()) as { id: string }
+
+      expect(body.id).toMatch(/\S/)
+    })
   })
 
   describe('when the provider fails', () => {

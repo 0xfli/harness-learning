@@ -37,6 +37,9 @@ export interface HarnessServer {
 /** Largest accepted `POST /events` body, in bytes. */
 const MAX_BODY_BYTES = 64 * 1024
 
+/** Longest accepted client-supplied message id. A UUID is 36. */
+const MAX_ID_LENGTH = 128
+
 const USAGE = `harness-learning session log
 
   GET  /events        Server-Sent Events feed: full history, then live events.
@@ -44,6 +47,9 @@ const USAGE = `harness-learning session log
   GET  /events.json   The same history as a plain JSON array.
   POST /events        Append one event. Body: {"type": "demo/hello", "data": {}}
   POST /messages      Say something to the model. Body: {"text": "hello"}
+                      Optionally name the exchange: {"text": "hi", "id": "..."}
+                      — every event of it carries that id, and a reused one is
+                      refused with 409.
                       Records user/message, one assistant/chunk per delta,
                       assistant/usage, then a single assistant/message.
   GET  /health        Liveness probe.
@@ -132,9 +138,23 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
           sendJson(res, 400, { error: 'body must be a JSON object' })
           return
         }
-        const { text } = body as { text?: unknown }
+        const { text, id } = body as { text?: unknown; id?: unknown }
         if (typeof text !== 'string' || text.trim().length === 0) {
           sendJson(res, 400, { error: '"text" must be a non-empty string' })
+          return
+        }
+        if (id !== undefined && (typeof id !== 'string' || id.trim().length === 0)) {
+          sendJson(res, 400, { error: '"id" must be a non-empty string when given' })
+          return
+        }
+        if (typeof id === 'string' && id.length > MAX_ID_LENGTH) {
+          sendJson(res, 400, { error: `"id" must be at most ${MAX_ID_LENGTH} characters` })
+          return
+        }
+        if (typeof id === 'string' && log.events.some((event) => event.data['id'] === id)) {
+          // Two exchanges under one id would fold into one turn in every
+          // reader downstream, and the log cannot un-append the second.
+          sendJson(res, 409, { error: `id "${id}" is already in the log` })
           return
         }
 
@@ -149,6 +169,10 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
             adapter,
             text,
             signal: controller.signal,
+            // Letting the caller name the exchange is what lets a browser show
+            // the message it just sent and recognise it when it comes back
+            // down the feed, rather than guessing by text. See ADR-0005.
+            ...(typeof id === 'string' ? { newId: () => id } : {}),
           })
           sendJson(res, 200, {
             id: result.id,

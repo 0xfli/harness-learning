@@ -34,8 +34,10 @@ const SURFACES = ['background', 'surface', 'surface-secondary', 'surface-tertiar
 
 /** Text tokens, and the surfaces each is actually painted on. */
 const TEXT: readonly { readonly name: string; readonly on: readonly string[] }[] = [
-  // `body` colour, and the checked label in the toggle.
-  { name: 'foreground', on: ['background', 'surface', 'surface-tertiary'] },
+  // `body` colour, the checked label in the toggle, the text of every turn —
+  // which sits on `--surface` when the model said it and `--surface-secondary`
+  // when the human did, and on the latter again inside the composer.
+  { name: 'foreground', on: ['background', 'surface', 'surface-secondary', 'surface-tertiary'] },
   // Panel titles, event types without a family colour, event data, the
   // connection status, the unchecked toggle labels.
   { name: 'muted', on: ['surface', 'surface-secondary', 'surface-tertiary'] },
@@ -89,6 +91,24 @@ describe.each(SCHEMES)('the %s palette', (scheme) => {
 
       expect(new Set(painted).size).toBe(EVENT_COLOUR_TOKENS.length)
     })
+  })
+
+  describe('the conversation', () => {
+    // A turn wears its family colour as a role label, and the human's turns
+    // sit on a fill of their own — so the family tokens have to read on
+    // `--surface-secondary` as well as on a log row.
+    it.each(['type-user', 'type-assistant', 'type-error', 'pending'])(
+      '--%s reads on a turn',
+      (name) => {
+        for (const surface of ['surface', 'surface-secondary']) {
+          const measured = ratio(name, surface)
+          expect(
+            measured,
+            `--${name} ${hex(token(palette, name))} on --${surface} is ${measured.toFixed(2)}:1`,
+          ).toBeGreaterThanOrEqual(TEXT_AA)
+        }
+      },
+    )
   })
 
   describe('structure', () => {

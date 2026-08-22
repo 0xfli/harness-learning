@@ -16,7 +16,7 @@ function stream(view: MountedInspector): string[] {
 }
 
 describe('the inspector shell', () => {
-  it('is three columns, one of them populated', () => {
+  it('is three columns over one log', () => {
     const view = mountInspector()
     const scope = within(view.container)
 
@@ -25,7 +25,8 @@ describe('the inspector shell', () => {
         panel.getAttribute('aria-label'),
       ),
     ).toEqual(['Event stream', 'Conversation', 'Model view'])
-    expect(scope.getByLabelText('Conversation').textContent).toContain('projection')
+    // Two of the three read the log now, and the middle one can be written to.
+    expect(scope.getByLabelText('Conversation').querySelector('.composer')).not.toBeNull()
     expect(scope.getByLabelText('Model view').textContent).toContain('derived from the same log')
   })
 
