@@ -1,51 +1,113 @@
 /*
- * Semantic colours, named for what they mean rather than what they look like.
+ * The palette.
  *
- * A dozen event types are coming. Naming a colour `--type-lifecycle` rather
- * than `--blue` is what lets the palette be re-tuned once instead of hunted
- * through markup.
+ * Two rules govern everything below.
+ *
+ * **One declaration, both schemes.** Every colour is a `light-dark()` pair, so
+ * a token's light and dark values sit on the same line and cannot drift apart.
+ * `color-scheme: light dark` on the root makes that pair follow the operating
+ * system with no JavaScript at all; `data-theme` pins it when a human has said
+ * otherwise. That attribute is the only thing the toggle writes.
+ *
+ * **Measured, not eyeballed.** Every ratio quoted here is asserted by
+ * `test/contrast.test.ts`, which parses this file and computes the numbers. If
+ * you retune a value, the test tells you what you broke. The targets are WCAG
+ * 2.2: 4.5:1 for text (SC 1.4.3 — the log rows are 12px monospace, which is
+ * not "large text") and 3:1 for the boundaries that carry structure
+ * (SC 1.4.11).
+ *
+ * The names are HeroUI v3's own semantic tokens — `background`, `foreground`,
+ * `surface`, `surface-secondary`, `muted`, `border`, `separator` — so
+ * overriding them here re-skins HeroUI's components and the inspector's own
+ * markup from a single palette. (HeroUI v3 renamed these from v2's
+ * `content1..4`; these are the ones it actually ships.)
+ *
+ * HeroUI's defaults are tuned for cards floating on a page, where a shadow
+ * does the separating. Measured against this layout they repeat the very fault
+ * this palette exists to fix: `surface` vs `background` at 1.14:1, `border`
+ * vs `surface` at 1.21:1, and light-mode `muted` at 4.21:1 on a secondary
+ * surface. An edge-to-edge three-column log has no shadows, so the border has
+ * to do the work, and every step below is chosen to make it.
  */
 
+@theme {
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
 :root {
-  color-scheme: dark;
+  /*
+   * `light dark` — not `light` or `dark`. This is what makes `light-dark()`
+   * below resolve against the operating system's preference.
+   */
+  color-scheme: light dark;
 
-  --surface-sunken: #0a0c10;
-  --surface: #101319;
-  --surface-raised: #161a22;
-  --border: #232936;
-  --border-strong: #333c4d;
+  /* Structural fills, lightest-emphasis first. */
+  --background: light-dark(oklch(0.935 0.003 286), oklch(0.13 0.006 286));
+  --surface: light-dark(oklch(1 0 0), oklch(0.205 0.006 286));
+  --surface-secondary: light-dark(oklch(0.955 0.004 286), oklch(0.265 0.006 286));
+  --surface-tertiary: light-dark(oklch(0.93 0.005 286), oklch(0.288 0.006 286));
 
-  --text: #dde3ee;
-  --text-muted: #8792a5;
-  --text-faint: #596273;
+  /*
+   * Three weights of text, and all three are readable. `--faint` is the one
+   * that used to fail: it paints the seq and clock columns of every row in the
+   * log, so "quiet" had to stop meaning "3.03:1". It is quieter than `--muted`
+   * by four points of ratio, not by dropping under the floor.
+   */
+  --foreground: light-dark(oklch(0.22 0.006 286), oklch(0.97 0.002 286));
+  --muted: light-dark(oklch(0.432 0.012 286), oklch(0.756 0.012 286));
+  --faint: light-dark(oklch(0.507 0.012 286), oklch(0.668 0.012 286));
 
-  --accent: #6aa9ff;
+  /*
+   * `--border` is structure and clears 3:1 against every fill it can sit on.
+   * `--separator` is the weaker rule for divisions inside a panel, where the
+   * fill step already does the separating.
+   */
+  --border: light-dark(oklch(0.599 0.008 286), oklch(0.57 0.008 286));
+  --separator: light-dark(oklch(0.795 0.005 286), oklch(0.394 0.007 286));
 
-  --live: #4ec9a0;
-  --pending: #e3b341;
-  --lost: #e06c75;
+  --accent: light-dark(oklch(0.495 0.142 256.5), oklch(0.684 0.142 256.5));
+
+  /* Feed health. */
+  --live: light-dark(oklch(0.468 0.125 167.7), oklch(0.668 0.125 167.7));
+  --pending: light-dark(oklch(0.494 0.139 85.2), oklch(0.685 0.139 85.2));
+  --lost: light-dark(oklch(0.511 0.145 17), oklch(0.701 0.145 17));
 
   /*
    * One colour per event *family* — the namespace before the `/`. Named for
    * who or what the event is about, so a dozen types stay legible and a new
    * type in a known family needs no new colour.
+   *
+   * Each pair holds one hue and chroma across both schemes and moves only in
+   * lightness, so a family is the same colour in light mode as in dark — just
+   * light enough, or dark enough, to be read on the surface behind it.
    */
-  --type-demo: #7f8ea3;
-  --type-session: #9d8cff;
-  --type-user: #6aa9ff;
-  --type-assistant: #4ec9a0;
-  --type-tool: #e3b341;
-  --type-error: #e06c75;
+  --type-demo: light-dark(oklch(0.493 0.036 256.8), oklch(0.682 0.036 256.8));
+  --type-session: light-dark(oklch(0.509 0.164 288.2), oklch(0.696 0.164 288.2));
+  --type-user: light-dark(oklch(0.495 0.142 256.5), oklch(0.684 0.142 256.5));
+  --type-assistant: light-dark(oklch(0.468 0.125 167.7), oklch(0.668 0.125 167.7));
+  --type-tool: light-dark(oklch(0.494 0.139 85.2), oklch(0.685 0.139 85.2));
+  --type-error: light-dark(oklch(0.511 0.145 17), oklch(0.701 0.145 17));
 
   /* Where an unfamiliar family lands until it earns a name of its own. */
-  --type-slot-a: #56b6c2;
-  --type-slot-b: #c191d8;
-  --type-slot-c: #d8a06a;
-  --type-slot-d: #8fbf6a;
-
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --type-slot-a: light-dark(oklch(0.479 0.092 206.3), oklch(0.673 0.092 206.3));
+  --type-slot-b: light-dark(oklch(0.506 0.113 314.4), oklch(0.695 0.113 314.4));
+  --type-slot-c: light-dark(oklch(0.498 0.097 64.4), oklch(0.688 0.097 64.4));
+  --type-slot-d: light-dark(oklch(0.483 0.125 132.8), oklch(0.671 0.125 132.8));
 
   --row-height: 1.45rem;
   --gutter: 0.75rem;
+}
+
+/*
+ * The manual override. Pinning `color-scheme` is all it takes to settle every
+ * `light-dark()` above, and the attribute is what HeroUI's own stylesheet
+ * keys off for the tokens we have not overridden.
+ */
+[data-theme='light'] {
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
 }

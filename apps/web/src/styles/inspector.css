@@ -1,5 +1,10 @@
 /*
  * Three columns that scroll independently, over a page that does not.
+ *
+ * Colour decisions do not live here — every one of them is a token from
+ * `theme.css`. That is deliberate: a palette that can be re-tuned in one file
+ * is a palette that can be *measured* in one file, which is what
+ * `test/contrast.test.ts` relies on. See `docs/adr/0003-tokens-not-utilities.md`.
  */
 
 * {
@@ -14,9 +19,9 @@ body,
 }
 
 body {
-  background: var(--surface-sunken);
-  color: var(--text);
-  font-family: var(--font-ui);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
   font-size: 13px;
 }
 
@@ -28,20 +33,21 @@ body {
 
 .inspector-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--gutter);
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-secondary);
 }
 
 .inspector-title {
   margin: 0;
+  margin-right: auto;
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .connection-status {
@@ -51,7 +57,7 @@ body {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .connection-dot {
@@ -68,6 +74,62 @@ body {
 .connection-status[data-status='reconnecting'] .connection-dot,
 .connection-status[data-status='closed'] .connection-dot {
   background: var(--lost);
+}
+
+/*
+ * A segmented control of three radios: the operating system's choice, and the
+ * two ways to overrule it. Radios rather than a cycling button, so the current
+ * scheme is announced and reachable without guessing what the next press does.
+ */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+}
+
+.theme-toggle-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.theme-choice {
+  display: block;
+}
+
+.theme-choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.theme-choice span {
+  display: block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.theme-choice input:checked + span {
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+}
+
+.theme-choice input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .inspector-columns {
@@ -95,7 +157,7 @@ body {
   gap: var(--gutter);
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-raised);
+  background: var(--surface-secondary);
 }
 
 .panel-title {
@@ -104,13 +166,13 @@ body {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .panel-note {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  color: var(--text-faint);
+  color: var(--faint);
 }
 
 .panel-body {
@@ -122,7 +184,7 @@ body {
   margin: 0;
   padding: 0.75rem;
   max-width: 34ch;
-  color: var(--text-faint);
+  color: var(--faint);
   line-height: 1.5;
 }
 
@@ -146,29 +208,38 @@ body {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   white-space: nowrap;
-  /* A tick in the gutter, so a family is scannable without reading a word. */
-  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--event-colour, transparent) 55%, transparent);
+  /*
+   * A tick in the gutter, so a family is scannable without reading a word. At
+   * full strength: the family colours now clear 5:1 on every surface, and
+   * diluting the one mark that carries meaning by position as well as hue was
+   * throwing that away.
+   */
+  box-shadow: inset 2px 0 0 var(--event-colour, transparent);
 }
 
+/*
+ * The hover step has no border to lean on, so the fill has to carry it alone —
+ * hence a whole tone of separation rather than the 1.07:1 it used to be.
+ */
 .event-row:hover {
-  background: var(--surface-raised);
+  background: var(--surface-tertiary);
 }
 
 .event-seq {
-  color: var(--text-faint);
+  color: var(--faint);
   text-align: right;
 }
 
 .event-time {
-  color: var(--text-faint);
+  color: var(--faint);
 }
 
 .event-type {
-  color: var(--event-colour, var(--text-muted));
+  color: var(--event-colour, var(--muted));
 }
 
 .event-data {
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-muted);
+  color: var(--muted);
 }

@@ -62,6 +62,20 @@ one log; keeping them in agreement is the whole job of a harness. Implemented in
 colours, so a new type in a known family needs no new colour and reads as
 related on sight. Implemented in `apps/web/src/event-colour.ts`.
 
+**Token** — a named colour in `apps/web/src/styles/theme.css`, carrying both
+its light and its dark value in one `light-dark()` declaration. Tokens are
+named for what they mean — `--faint`, `--border`, `--type-assistant` — never
+for what they look like, and they are the only place a colour is written down.
+A stylesheet names tokens; markup names neither. See
+`docs/adr/0003-tokens-not-utilities.md`.
+
+**Scheme** — light or dark. Follows the operating system by default, through
+`color-scheme: light dark` rather than through JavaScript, and is overruled by
+`data-theme` on the root element. The choice lives outside React in
+`apps/web/src/theme-store.ts` — it is the only state in `apps/web` that is not
+a projection of the log, and it is kept out of the component tree for the same
+reason the log is.
+
 ## Layout
 
 - `packages/core/session` — the log. Pure; knows nothing about HTTP.

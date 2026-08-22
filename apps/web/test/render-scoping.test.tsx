@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { act } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resetThemeStore, setThemeChoice } from '../src/theme-store.ts'
 import { mountInspector, wireEvent } from './helpers/inspector.tsx'
 
 // The two idle columns are replaced by counters. They render nothing, so the
@@ -60,5 +62,26 @@ describe('the shell itself', () => {
     // re-render for. Hoisting the event array into App would break this and
     // nothing else — which is exactly why it is a test.
     expect(renders).toEqual(afterMount)
+  })
+})
+
+describe('a change of colour scheme', () => {
+  afterEach(resetThemeStore)
+
+  it('re-renders the toggle and nothing else', () => {
+    const view = mountInspector()
+    const settled = { ...renders }
+
+    act(() => {
+      setThemeChoice('dark')
+    })
+
+    // The colour scheme is the one piece of UI state on the page, and it is
+    // held outside React for this reason. A `useState` in App — or a provider
+    // above the columns holding it — would repaint all three columns every
+    // time somebody flipped the theme, and would break exactly this.
+    expect(document.documentElement.dataset['theme']).toBe('dark')
+    expect(view.container.querySelector('.theme-toggle')).not.toBeNull()
+    expect(renders).toEqual(settled)
   })
 })

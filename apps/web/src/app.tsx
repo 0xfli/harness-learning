@@ -14,13 +14,15 @@ import { ConnectionStatus } from './connection-status.tsx'
 import { ConversationPanel } from './panels/conversation-panel.tsx'
 import { EventStreamPanel } from './panels/event-stream-panel.tsx'
 import { ModelViewPanel } from './panels/model-view-panel.tsx'
+import { ThemeToggle } from './theme-toggle.tsx'
 
 /**
  * The whole page.
  *
- * Note what this component does not do: it does not read the log. Nothing is
- * threaded through it as props, so an arriving event re-renders the one panel
- * that subscribed to events and nothing else.
+ * Note what this component does not do: it does not read the log, and it does
+ * not hold the colour scheme either. Nothing is threaded through it as props,
+ * so an arriving event re-renders the one panel that subscribed to events, and
+ * changing the scheme re-renders only the toggle.
  *
  * @returns the inspector element.
  */
@@ -30,6 +32,7 @@ export function App(): ReactNode {
       <header className="inspector-header">
         <h1 className="inspector-title">session inspector</h1>
         <ConnectionStatus />
+        <ThemeToggle />
       </header>
       <main className="inspector-columns">
         <EventStreamPanel />

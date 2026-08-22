@@ -1,8 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { EVENT_COLOUR_TOKENS, eventColourToken, eventFamily } from '../src/event-colour.ts'
+import { readPalette, token as themeToken } from './helpers/contrast.ts'
 
 describe('eventFamily', () => {
   it.each([
@@ -51,13 +49,17 @@ describe('eventColourToken', () => {
   })
 
   it('only ever names a colour the theme defines', () => {
-    // Not `new URL('...', import.meta.url)`: Vite rewrites that into an asset
-    // URL, and an asset URL is not a file on disk.
-    const here = dirname(fileURLToPath(import.meta.url))
-    const theme = readFileSync(join(here, '../src/styles/theme.css'), 'utf8')
+    // The tokens still live in `theme.css`, but they are `light-dark()` pairs
+    // now, so a substring check is no longer enough — a token could name the
+    // right variable and still be unpaintable. `readPalette` parses the file
+    // and resolves each one, and throws on anything it cannot measure, so this
+    // fails both for a token the theme forgot and for one it wrote wrongly.
+    for (const scheme of ['light', 'dark'] as const) {
+      const palette = readPalette(scheme)
 
-    for (const token of EVENT_COLOUR_TOKENS) {
-      expect(theme, `theme.css is missing ${token}`).toContain(`${token}:`)
+      for (const name of EVENT_COLOUR_TOKENS) {
+        expect(() => themeToken(palette, name.replace(/^--/, ''))).not.toThrow()
+      }
     }
   })
 })

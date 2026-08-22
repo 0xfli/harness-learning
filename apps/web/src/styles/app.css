@@ -1,0 +1,32 @@
+/*
+ * The one stylesheet the app imports. Order is load-bearing.
+ *
+ * Tailwind first, because HeroUI's stylesheet is written against Tailwind v4's
+ * layers. HeroUI second, because it declares the semantic palette we then
+ * override. Ours last, and deliberately *unlayered*: unlayered rules beat
+ * layered ones no matter their specificity, so `theme.css` wins over HeroUI's
+ * `@layer theme` without a specificity arms race.
+ *
+ * Note what is imported from HeroUI, and what is not. `@heroui/styles` — the
+ * whole thing — is 407 kB raw, 38.7 kB gzipped, and almost all of it styles
+ * components this page does not render. Measured, on this page:
+ *
+ *   | imported                        | CSS raw   | gzipped  |
+ *   | ------------------------------- | --------- | -------- |
+ *   | nothing (before this change)    |   3.09 kB |  1.14 kB |
+ *   | tailwindcss                     |  10.87 kB |  3.10 kB |
+ *   | + @heroui/styles/themes/default |  31.97 kB |  5.07 kB |
+ *   | + @heroui/styles (all of it)    | 407.46 kB | 38.74 kB |
+ *
+ * The theme is the part we came for: the semantic scales, their light and dark
+ * pairings, and the `@theme inline` block that maps them onto Tailwind's
+ * colour utilities. The component styles are 37 kB gzipped of nothing. Import
+ * the matching `@heroui/styles/components/<name>.css` alongside the first
+ * HeroUI component this page actually renders, or switch to the full import
+ * once enough of them are in use to pay for it.
+ */
+
+@import 'tailwindcss';
+@import '@heroui/styles/themes/default';
+@import './theme.css';
+@import './inspector.css';
