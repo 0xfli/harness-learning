@@ -6,5 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "openai": "^7.5.0"
   }
 }

@@ -3,6 +3,7 @@ import { SessionLog } from '@harness/session'
 import { createScriptedAdapter } from '@harness/llm'
 import type { ModelAdapter, StreamChunk } from '@harness/llm'
 import { recordExchange, replayChunks } from '../src/exchange.ts'
+import { deriveMessages } from '../src/messages.ts'
 
 /** Ids that read well in a failure message, instead of UUIDs. */
 function counter(prefix = 'm'): () => string {
@@ -139,6 +140,7 @@ describe('recordExchange', () => {
       text: 'cut off',
       reason: 'length',
       chunks: 1,
+      reasoningChunks: 0,
     })
   })
 
@@ -233,5 +235,95 @@ describe('recordExchange', () => {
 
     expect(log.events.filter((event) => event.type === 'assistant/chunk')).toHaveLength(2)
     expect(typesOf(log).at(-1)).toBe('error/stream')
+  })
+})
+
+describe('reasoning', () => {
+  const THINKING: readonly StreamChunk[] = [
+    { type: 'reasoning-delta', text: 'the user wants ' },
+    { type: 'reasoning-delta', text: '17 times 23' },
+    { type: 'text-delta', text: '391' },
+    { type: 'finish', reason: 'stop' },
+  ]
+
+  it('records each reasoning delta as an event of its own', async () => {
+    const log = new SessionLog()
+
+    await recordExchange({ log, adapter: fixedAdapter(THINKING), text: 'hi', newId: counter() })
+
+    expect(typesOf(log)).toEqual([
+      'user/message',
+      'assistant/reasoning',
+      'assistant/reasoning',
+      'assistant/chunk',
+      'assistant/message',
+    ])
+  })
+
+  it('counts reasoning separately, so an index means one thing', async () => {
+    const log = new SessionLog()
+
+    const result = await recordExchange({
+      log,
+      adapter: fixedAdapter(THINKING),
+      text: 'hi',
+      newId: counter(),
+    })
+
+    expect(result.chunks).toBe(1)
+    expect(result.reasoningChunks).toBe(2)
+    // Both start at zero: they are separate runs, not one interleaved run.
+    expect(
+      log.events.filter((event) => event.type === 'assistant/reasoning').map((e) => e.data.index),
+    ).toEqual([0, 1])
+    expect(
+      log.events.filter((event) => event.type === 'assistant/chunk').map((e) => e.data.index),
+    ).toEqual([0])
+  })
+
+  it('keeps reasoning out of the reply, whose deltas still concatenate to it', async () => {
+    const log = new SessionLog()
+
+    const result = await recordExchange({
+      log,
+      adapter: fixedAdapter(THINKING),
+      text: 'hi',
+      newId: counter(),
+    })
+
+    expect(result.text).toBe('391')
+    expect(replayChunks(log.events, result.id)).toBe('391')
+  })
+
+  it('never shows the model its own reasoning back', async () => {
+    // The half that matters. Providers reject a request carrying their own
+    // `reasoning_content`, and it is not something anybody said — so the
+    // second turn must look exactly as though the first had never thought.
+    const log = new SessionLog()
+    await recordExchange({ log, adapter: fixedAdapter(THINKING), text: 'hi', newId: counter() })
+
+    const seen = deriveMessages(log)
+
+    expect(seen).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: '391' },
+    ])
+    expect(JSON.stringify(seen)).not.toContain('17 times 23')
+    // …while the log kept every word of it.
+    expect(log.events.filter((event) => event.type === 'assistant/reasoning')).toHaveLength(2)
+  })
+
+  it('records nothing extra for a model that does not reason', async () => {
+    const log = new SessionLog()
+
+    const result = await recordExchange({
+      log,
+      adapter: createScriptedAdapter({ reply: 'plain' }),
+      text: 'hi',
+      newId: counter(),
+    })
+
+    expect(result.reasoningChunks).toBe(0)
+    expect(typesOf(log)).not.toContain('assistant/reasoning')
   })
 })
