@@ -4,6 +4,7 @@
  * @module
  */
 
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
@@ -11,7 +12,11 @@ import { defineConfig } from 'vitest/config'
 const harnessOrigin = process.env.HARNESS_ORIGIN ?? 'http://localhost:8787'
 
 export default defineConfig({
-  plugins: [react()],
+  // Tailwind v4 is CSS-first: the plugin is the whole install, and there is no
+  // `tailwind.config.js` to keep in step with it. The Vitest project below
+  // shares this config, where the plugin is inert — Vitest does not process
+  // CSS, so it never sees a file Tailwind would transform.
+  plugins: [tailwindcss(), react()],
   server: {
     port: 5173,
     // Proxying keeps the feed same-origin: no CORS on the server, and no
