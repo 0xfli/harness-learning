@@ -20,8 +20,8 @@ export function ConversationPanel(): ReactNode {
   return (
     <Panel title="Conversation">
       <PanelPlaceholder>
-        a projection of the message events in the log. There are none yet — and
-        when there are, this column will derive them rather than store them.
+        a projection of the message events in the log. There are none yet — and when there are, this
+        column will derive them rather than store them.
       </PanelPlaceholder>
     </Panel>
   )

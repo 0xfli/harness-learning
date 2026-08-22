@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node"],
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node", "react", "jsx-a11y"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -14,11 +14,18 @@
   "ignorePatterns": ["dist", "coverage"],
   "rules": {
     "no-await-in-loop": "off",
-    "unicorn/consistent-function-scoping": "off"
+    "unicorn/consistent-function-scoping": "off",
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ]
   },
   "overrides": [
     {
-      "files": ["**/test/**/*.ts", "**/*.test.ts"],
+      "files": ["**/test/**/*.{ts,tsx}", "**/*.test.{ts,tsx}"],
       "plugins": ["vitest"]
     }
   ]

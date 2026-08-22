@@ -61,12 +61,12 @@ body {
   background: var(--pending);
 }
 
-.connection-status[data-status="open"] .connection-dot {
+.connection-status[data-status='open'] .connection-dot {
   background: var(--live);
 }
 
-.connection-status[data-status="reconnecting"] .connection-dot,
-.connection-status[data-status="closed"] .connection-dot {
+.connection-status[data-status='reconnecting'] .connection-dot,
+.connection-status[data-status='closed'] .connection-dot {
   background: var(--lost);
 }
 

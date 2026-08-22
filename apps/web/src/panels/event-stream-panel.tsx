@@ -22,7 +22,10 @@ export function EventStreamPanel(): ReactNode {
   const events = useSessionEvents()
 
   return (
-    <Panel title="Event stream" note={`${events.length} ${events.length === 1 ? 'event' : 'events'}`}>
+    <Panel
+      title="Event stream"
+      note={`${events.length} ${events.length === 1 ? 'event' : 'events'}`}
+    >
       {events.length === 0 ? (
         <PanelPlaceholder>waiting for the first event</PanelPlaceholder>
       ) : (

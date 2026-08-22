@@ -91,7 +91,10 @@ describe('the feed client against a real server', () => {
   it('shows two clients the same event without either one asking', async () => {
     const left = connect()
     const right = connect()
-    await until('both connections', () => left.status.getSnapshot() === 'open' && right.status.getSnapshot() === 'open')
+    await until(
+      'both connections',
+      () => left.status.getSnapshot() === 'open' && right.status.getSnapshot() === 'open',
+    )
 
     harness.log.append('demo/hello', { from: 'the server' })
 

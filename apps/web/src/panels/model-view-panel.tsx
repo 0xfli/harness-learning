@@ -20,8 +20,8 @@ export function ModelViewPanel(): ReactNode {
   return (
     <Panel title="Model view">
       <PanelPlaceholder>
-        the messages a model would be sent, derived from the same log. Empty
-        until there is a model to send them to.
+        the messages a model would be sent, derived from the same log. Empty until there is a model
+        to send them to.
       </PanelPlaceholder>
     </Panel>
   )

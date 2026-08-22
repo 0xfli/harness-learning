@@ -26,9 +26,11 @@ const LABELS: Record<FeedStatus, string> = {
 export function ConnectionStatus(): ReactNode {
   const status = useFeedStatus()
   return (
-    <p className="connection-status" data-status={status} role="status">
+    // `output` is the live region for a value the page keeps updating; it
+    // carries `role="status"` implicitly.
+    <output className="connection-status" data-status={status}>
       <span className="connection-dot" aria-hidden="true" />
       {LABELS[status]}
-    </p>
+    </output>
   )
 }
