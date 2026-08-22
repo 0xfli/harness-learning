@@ -47,6 +47,11 @@ curl -X POST http://localhost:8787/events \
   -d '{"type":"demo/hello","data":{"from":"curl"}}'
 ```
 
+The new row lands at the bottom and the stream scrolls to meet it — unless you
+had scrolled up to read, in which case it stays exactly where you left it. Its
+type is coloured by *family*, the namespace before the `/`, so `assistant/chunk`
+and `assistant/message` read as relatives at a glance.
+
 Refresh the page. It looks exactly as it did: the client keeps nothing, and the
 server replays the whole log to every new connection.
 

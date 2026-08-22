@@ -25,6 +25,24 @@
   --pending: #e3b341;
   --lost: #e06c75;
 
+  /*
+   * One colour per event *family* — the namespace before the `/`. Named for
+   * who or what the event is about, so a dozen types stay legible and a new
+   * type in a known family needs no new colour.
+   */
+  --type-demo: #7f8ea3;
+  --type-session: #9d8cff;
+  --type-user: #6aa9ff;
+  --type-assistant: #4ec9a0;
+  --type-tool: #e3b341;
+  --type-error: #e06c75;
+
+  /* Where an unfamiliar family lands until it earns a name of its own. */
+  --type-slot-a: #56b6c2;
+  --type-slot-b: #c191d8;
+  --type-slot-c: #d8a06a;
+  --type-slot-d: #8fbf6a;
+
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 

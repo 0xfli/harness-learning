@@ -146,6 +146,8 @@ body {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   white-space: nowrap;
+  /* A tick in the gutter, so a family is scannable without reading a word. */
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--event-colour, transparent) 55%, transparent);
 }
 
 .event-row:hover {
@@ -162,7 +164,7 @@ body {
 }
 
 .event-type {
-  color: var(--text-muted);
+  color: var(--event-colour, var(--text-muted));
 }
 
 .event-data {

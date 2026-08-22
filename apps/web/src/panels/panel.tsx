@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref, UIEventHandler } from 'react'
 
 /** Props for {@link Panel}. */
 export interface PanelProps {
@@ -12,6 +12,9 @@ export interface PanelProps {
   readonly title: string
   /** Small right-aligned note, e.g. a count. */
   readonly note?: string | undefined
+  /** Attach to the scrolling body, for a column that follows its own tail. */
+  readonly bodyRef?: Ref<HTMLDivElement> | undefined
+  readonly onBodyScroll?: UIEventHandler<HTMLDivElement> | undefined
   readonly children: ReactNode
 }
 
@@ -21,14 +24,16 @@ export interface PanelProps {
  * @param props - heading, note, and body.
  * @returns the column element.
  */
-export function Panel({ title, note, children }: PanelProps): ReactNode {
+export function Panel({ title, note, bodyRef, onBodyScroll, children }: PanelProps): ReactNode {
   return (
     <section className="panel" aria-label={title}>
       <header className="panel-header">
         <h2 className="panel-title">{title}</h2>
         {note === undefined ? null : <span className="panel-note">{note}</span>}
       </header>
-      <div className="panel-body">{children}</div>
+      <div className="panel-body" ref={bodyRef} onScroll={onBodyScroll}>
+        {children}
+      </div>
     </section>
   )
 }

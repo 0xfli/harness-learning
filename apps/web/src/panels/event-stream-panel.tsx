@@ -7,24 +7,29 @@
  * @module
  */
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { SessionEvent } from '@harness/session'
+import { eventColourToken, eventFamily } from '../event-colour.ts'
 import { formatClock, formatData } from '../format.ts'
 import { useSessionEvents } from '../use-session.ts'
+import { useTailFollow } from '../use-tail-follow.ts'
 import { Panel, PanelPlaceholder } from './panel.tsx'
 
 /**
- * Every event in the log, oldest first.
+ * Every event in the log, oldest first, following the tail.
  *
  * @returns the event stream column.
  */
 export function EventStreamPanel(): ReactNode {
   const events = useSessionEvents()
+  const tail = useTailFollow(events.length)
 
   return (
     <Panel
       title="Event stream"
       note={`${events.length} ${events.length === 1 ? 'event' : 'events'}`}
+      bodyRef={tail.ref}
+      onBodyScroll={tail.onScroll}
     >
       {events.length === 0 ? (
         <PanelPlaceholder>waiting for the first event</PanelPlaceholder>
@@ -47,8 +52,18 @@ interface EventRowProps {
 
 function EventRow({ event }: EventRowProps): ReactNode {
   const data = formatData(event.data)
+  // The row carries its colour as a custom property and the stylesheet decides
+  // what to paint with it. React's style types do not know about those.
+  const colour = { '--event-colour': `var(${eventColourToken(event.type)})` } as CSSProperties
+
   return (
-    <li className="event-row" data-seq={event.seq} data-type={event.type}>
+    <li
+      className="event-row"
+      style={colour}
+      data-seq={event.seq}
+      data-type={event.type}
+      data-family={eventFamily(event.type)}
+    >
       <span className="event-seq">{event.seq}</span>
       <time className="event-time" dateTime={new Date(event.time).toISOString()}>
         {formatClock(event.time)}
