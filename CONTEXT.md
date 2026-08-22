@@ -111,6 +111,13 @@ never for what they look like, and they are the only place such a value is
 written down. A stylesheet names tokens; markup names neither. See
 `docs/adr/0003-tokens-not-utilities.md`.
 
+**Neutral** — any token that is not carrying a meaning of its own: the four
+fills, the two rules, the three weights of text. All nine sit on one hue and
+none of them is grey, and `--surface` is deliberately not white. The hue is the
+accent's, at a fortieth of its chroma, which is what lets a saturated control
+read as belonging to the page rather than stuck on it. See
+`apps/web/src/styles/theme.css`.
+
 **Tint** — a colour laid over the surface behind it as a wash, at `--tint`, to
 make a chip out of the thing written on it: an event type, a turn's role, an
 error. Always the same colour as the text in front of it, so a chip never

@@ -17,10 +17,20 @@
  * (SC 1.4.11).
  *
  * The names are HeroUI v3's own semantic tokens — `background`, `foreground`,
- * `surface`, `surface-secondary`, `muted`, `border`, `separator` — so
- * overriding them here re-skins HeroUI's components and the inspector's own
- * markup from a single palette. (HeroUI v3 renamed these from v2's
- * `content1..4`; these are the ones it actually ships.)
+ * `surface`, `surface-secondary`, `muted`, `border`, `separator` — so the
+ * inspector and HeroUI's components describe a fill with the same word.
+ * (HeroUI v3 renamed these from v2's `content1..4`; these are the ones it
+ * actually ships.) They are not yet the same *tokens*: v3 is themed through
+ * Tailwind v4's colour namespace and reads `--color-surface`, so the day a
+ * HeroUI component is rendered here it needs a `--color-*` alias pointing at
+ * each name below. See #49.
+ *
+ * The neutrals are cool and they are not grey. Every fill, every weight of
+ * text and both rules sit on one hue — 262, a blue — with just enough chroma
+ * to be found: 0.005 on a panel, 0.018 on the page behind it. A dead-neutral
+ * ramp and a paper-white panel are what make a dense tool look like a printed
+ * form; a single hue running through the whole ramp is what makes the three
+ * columns read as one surface with light on it.
  *
  * Below the palette sit the scales that are not colours: tint, elevation,
  * radius and motion. They are here for the same reason the colours are —
@@ -47,11 +57,16 @@
    */
   color-scheme: light dark;
 
-  /* Structural fills, lightest-emphasis first. */
-  --background: light-dark(oklch(0.935 0.003 286), oklch(0.13 0.006 286));
-  --surface: light-dark(oklch(1 0 0), oklch(0.205 0.006 286));
-  --surface-secondary: light-dark(oklch(0.955 0.004 286), oklch(0.265 0.006 286));
-  --surface-tertiary: light-dark(oklch(0.93 0.005 286), oklch(0.288 0.006 286));
+  /*
+   * Structural fills, lightest-emphasis first. Note what `--surface` is not:
+   * `oklch(1 0 0)`. A panel that is literally white leaves the page behind it
+   * nowhere to go but grey, and the pair reads as paper under a bezel. Held
+   * just under white and given the hue, it reads as lit.
+   */
+  --background: light-dark(oklch(0.928 0.016 262), oklch(0.142 0.013 262));
+  --surface: light-dark(oklch(0.984 0.005 262), oklch(0.212 0.013 262));
+  --surface-secondary: light-dark(oklch(0.948 0.011 262), oklch(0.268 0.013 262));
+  --surface-tertiary: light-dark(oklch(0.916 0.018 262), oklch(0.285 0.014 262));
 
   /*
    * Three weights of text, and all three are readable. `--faint` is the one
@@ -59,17 +74,17 @@
    * log, so "quiet" had to stop meaning "3.03:1". It is quieter than `--muted`
    * by four points of ratio, not by dropping under the floor.
    */
-  --foreground: light-dark(oklch(0.22 0.006 286), oklch(0.97 0.002 286));
-  --muted: light-dark(oklch(0.432 0.012 286), oklch(0.756 0.012 286));
-  --faint: light-dark(oklch(0.507 0.012 286), oklch(0.668 0.012 286));
+  --foreground: light-dark(oklch(0.21 0.017 262), oklch(0.97 0.004 262));
+  --muted: light-dark(oklch(0.432 0.018 262), oklch(0.756 0.014 262));
+  --faint: light-dark(oklch(0.503 0.017 262), oklch(0.668 0.014 262));
 
   /*
    * `--border` is structure and clears 3:1 against every fill it can sit on.
    * `--separator` is the weaker rule for divisions inside a panel, where the
    * fill step already does the separating.
    */
-  --border: light-dark(oklch(0.599 0.008 286), oklch(0.57 0.008 286));
-  --separator: light-dark(oklch(0.795 0.005 286), oklch(0.394 0.007 286));
+  --border: light-dark(oklch(0.596 0.014 262), oklch(0.57 0.014 262));
+  --separator: light-dark(oklch(0.79 0.011 262), oklch(0.394 0.012 262));
 
   /*
    * The accent, the step it takes when pressed, and the ink that reads on
@@ -77,10 +92,14 @@
    * because the accent itself crosses over: a mid blue on a white page, a
    * bright one on a dark page. A single "white text on the button" would fail
    * in exactly one of the two schemes, which is the failure nobody notices.
+   *
+   * It is the neutrals' own hue, at forty times their chroma. A blue that is
+   * not the grey's blue reads as a sticker; the same hue turned up reads as
+   * the one thing on the page that is saturated on purpose.
    */
-  --accent: light-dark(oklch(0.465 0.142 256.5), oklch(0.728 0.142 256.5));
-  --accent-strong: light-dark(oklch(0.4 0.148 256.5), oklch(0.8 0.12 256.5));
-  --on-accent: light-dark(oklch(0.985 0.002 256), oklch(0.17 0.014 256));
+  --accent: light-dark(oklch(0.465 0.17 262), oklch(0.728 0.14 262));
+  --accent-strong: light-dark(oklch(0.4 0.175 262), oklch(0.8 0.115 262));
+  --on-accent: light-dark(oklch(0.985 0.003 262), oklch(0.16 0.02 262));
 
   /*
    * What a shadow is made of. Not black: a shadow on a light page is a cool
@@ -88,7 +107,7 @@
    * below mixes this down to the alpha it needs, so the whole scale re-tunes
    * from one line.
    */
-  --shade: light-dark(oklch(0.42 0.028 286), oklch(0.06 0.012 286));
+  --shade: light-dark(oklch(0.4 0.045 262), oklch(0.05 0.02 262));
 
   /* Feed health. */
   --live: light-dark(oklch(0.438 0.125 167.7), oklch(0.709 0.125 167.7));
@@ -104,9 +123,9 @@
    * lightness, so a family is the same colour in light mode as in dark — just
    * light enough, or dark enough, to be read on the surface behind it.
    */
-  --type-demo: light-dark(oklch(0.465 0.036 256.8), oklch(0.729 0.036 256.8));
+  --type-demo: light-dark(oklch(0.465 0.03 262), oklch(0.729 0.03 262));
   --type-session: light-dark(oklch(0.479 0.164 288.2), oklch(0.747 0.164 288.2));
-  --type-user: light-dark(oklch(0.465 0.142 256.5), oklch(0.728 0.142 256.5));
+  --type-user: light-dark(oklch(0.465 0.17 262), oklch(0.728 0.14 262));
   --type-assistant: light-dark(oklch(0.438 0.125 167.7), oklch(0.709 0.125 167.7));
   --type-tool: light-dark(oklch(0.464 0.139 85.2), oklch(0.73 0.139 85.2));
   --type-error: light-dark(oklch(0.479 0.145 17), oklch(0.744 0.145 17));

@@ -55,13 +55,22 @@ tenths of a point and bought nothing with the rest.
    louder. Base contrast goes from ~5.0:1 to ~5.9:1, which is what pays for a
    12% tint with a third of a point still in hand.
 
-5. **`--on-accent`, because the accent crosses over.** The send button is the
+5. **The neutrals are cool, and no fill is white.** The four structural fills,
+   both weights of rule and all three weights of text sit on one hue — 262 —
+   with chroma from 0.004 to 0.018, and `--surface` stops just short of white
+   at 0.984. A dead-neutral ramp under a paper-white panel is what makes a
+   dense tool read as a printed form; one hue running through the whole ramp
+   is what makes three columns read as one surface with light on it. The
+   accent is that same hue at forty times the chroma, so the one saturated
+   thing on the page is saturated on purpose rather than borrowed.
+
+6. **`--on-accent`, because the accent crosses over.** The send button is the
    one filled control on the page, and `--accent` is a mid blue in light mode
    and a bright one in dark. White text would fail in exactly one of the two
    schemes, so the ink is a token with a light and a dark value like everything
    else, measured on both `--accent` and its hover step.
 
-6. **Motion is ambient or it does not exist.** Two things move on their own:
+7. **Motion is ambient or it does not exist.** Two things move on their own:
    the caret under a streaming reply and the ring around a live feed. Both are
    restatements — the caret's state is in `data-state`, the ring's is in the
    word beside it — so both stop under `prefers-reduced-motion` and nothing
@@ -76,9 +85,17 @@ tenths of a point and bought nothing with the rest.
 - The contrast suite went from 62 assertions to 88, and the helper it runs on
   gained `mix` and `readPercentage`. `mix` is checked against the three values
   anyone can verify by hand, for the same reason `contrast` and `oklch` are.
-- Retuning the palette moved fourteen tokens at once. That is exactly the
-  change ADR-0003's test exists to make safe, and it was: the numbers were
-  solved for, applied, and the suite said so.
+- Retuning the palette moved every colour in the file — fourteen for the tint,
+  and then the nine neutrals for the hue. That is exactly the change ADR-0003's
+  test exists to make safe, and it was: the numbers were solved for, applied,
+  and the suite said so. The cool ramp passed all 88 assertions unaltered,
+  which is the whole argument for measuring a palette rather than agreeing
+  about it.
+- Moving the neutrals onto a hue spends contrast headroom that a grey ramp does
+  not: `--surface-secondary` clears its panel body by 1.11:1 against a floor of
+  1.1, and the hover step clears 1.2:1 by two hundredths. Both are the test's
+  to defend now, and either one is a reason a future lightening of `--surface`
+  fails rather than quietly flattens.
 - `color-mix()` and `light-dark()` are both Baseline 2024. The inspector is a
   development tool served by Vite to whatever the developer is running; it does
   not carry a fallback for browsers that predate them.
