@@ -10,5 +10,8 @@
   },
   "dependencies": {
     "@harness/session": "workspace:*"
+  },
+  "devDependencies": {
+    "@harness/session-feed": "workspace:*"
   }
 }

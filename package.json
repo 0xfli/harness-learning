@@ -5,10 +5,13 @@
   "description": "Building a coding agent harness from scratch, one step at a time.",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @harness/dev-server run dev",
+    "dev": "pnpm --parallel --filter @harness/dev-server --filter @harness/web run dev",
+    "dev:server": "pnpm --filter @harness/dev-server run dev",
+    "dev:web": "pnpm --filter @harness/web run dev",
+    "build": "pnpm --filter @harness/web run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm --filter @harness/web run typecheck",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
@@ -27,7 +30,7 @@
     "vitest": "^3.0.2"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs,ts,mts,cts}": [
+    "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": [
       "oxlint --fix --max-warnings 0 --no-error-on-unmatched-pattern",
       "oxfmt --no-error-on-unmatched-pattern"
     ],

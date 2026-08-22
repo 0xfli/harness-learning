@@ -3,10 +3,14 @@
  * the network replaced by test code that decides exactly what arrives and
  * when.
  *
- * @module
+ * Shipped with the package rather than kept in its tests, because every
+ * consumer needs it — a UI test that cannot drive the feed by hand has to
+ * stand up a server to render a list.
+ *
+ * @module @harness/session-feed/testing
  */
 
-import type { FeedSource, FeedSourceFactory, FeedSourceMessage } from '../../src/index.ts'
+import type { FeedSource, FeedSourceFactory, FeedSourceMessage } from './types.ts'
 
 /** One connection the feed client opened. */
 export class FakeSource implements FeedSource {

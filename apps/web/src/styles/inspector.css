@@ -1,0 +1,172 @@
+/*
+ * Three columns that scroll independently, over a page that does not.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.inspector {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.inspector-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gutter);
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.inspector-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.connection-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--pending);
+}
+
+.connection-status[data-status="open"] .connection-dot {
+  background: var(--live);
+}
+
+.connection-status[data-status="reconnecting"] .connection-dot,
+.connection-status[data-status="closed"] .connection-dot {
+  background: var(--lost);
+}
+
+.inspector-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.panel:last-child {
+  border-right: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gutter);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.panel-note {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+.panel-body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.panel-placeholder {
+  margin: 0;
+  padding: 0.75rem;
+  max-width: 34ch;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.event-list {
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+}
+
+/*
+ * One event, one line. A stream that wraps stops being scannable at the exact
+ * moment it gets busy, so a long payload is clipped rather than reflowed.
+ */
+.event-row {
+  display: grid;
+  grid-template-columns: 3.5rem 6.5rem minmax(8rem, auto) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0 0.75rem;
+  height: var(--row-height);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.event-row:hover {
+  background: var(--surface-raised);
+}
+
+.event-seq {
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.event-time {
+  color: var(--text-faint);
+}
+
+.event-type {
+  color: var(--text-muted);
+}
+
+.event-data {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
