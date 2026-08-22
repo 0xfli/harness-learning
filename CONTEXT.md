@@ -137,12 +137,33 @@ through to the text on screen. Implemented in `apps/web/src/model-view.ts`; see
 colours, so a new type in a known family needs no new colour and reads as
 related on sight. Implemented in `apps/web/src/event-colour.ts`.
 
-**Token** — a named colour in `apps/web/src/styles/theme.css`, carrying both
-its light and its dark value in one `light-dark()` declaration. Tokens are
-named for what they mean — `--faint`, `--border`, `--type-assistant` — never
-for what they look like, and they are the only place a colour is written down.
-A stylesheet names tokens; markup names neither. See
+**Token** — a named value in `apps/web/src/styles/theme.css`. Colours carry
+both their light and their dark value in one `light-dark()` declaration; the
+tint, elevation, radius and motion scales are single values. Tokens are named
+for what they mean — `--faint`, `--border`, `--type-assistant`, `--shadow-md` —
+never for what they look like, and they are the only place such a value is
+written down. A stylesheet names tokens; markup names neither. See
 `docs/adr/0003-tokens-not-utilities.md`.
+
+**Neutral** — any token that is not carrying a meaning of its own: the four
+fills, the two rules, the three weights of text. All nine sit on one hue and
+none of them is grey, and `--surface` is deliberately not white. The hue is the
+accent's, at a fortieth of its chroma, which is what lets a saturated control
+read as belonging to the page rather than stuck on it. See
+`apps/web/src/styles/theme.css`.
+
+**Tint** — a colour laid over the surface behind it as a wash, at `--tint`, to
+make a chip out of the thing written on it: an event type, a turn's role, an
+error. Always the same colour as the text in front of it, so a chip never
+introduces a colour of its own — and always measured, because a wash of a
+colour under that colour is contrast spent. Buying enough headroom for one is
+why the family colours are darker in light mode and lighter in dark than they
+first shipped. See `docs/adr/0008-tint-elevation-and-motion.md`.
+
+**Elevation** — what floats over what, and the only thing a shadow is allowed
+to mean. The inspector header, each panel header and the composer's footer cast
+one, because a column scrolls underneath them. The three columns cast none:
+they sit side by side in one plane, and a border tells them apart.
 
 **Scheme** — light or dark. Follows the operating system by default, through
 `color-scheme: light dark` rather than through JavaScript, and is overruled by

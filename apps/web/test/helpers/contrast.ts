@@ -167,6 +167,58 @@ function parseColour(value: string): Rgb {
 export type Palette = ReadonlyMap<string, Rgb>
 
 /**
+ * `theme.css`, as text.
+ *
+ * @returns the stylesheet's source.
+ */
+function readTheme(): string {
+  // Not `new URL('...', import.meta.url)`: Vite rewrites that into an asset
+  // URL, and an asset URL is not a file on disk.
+  const here = dirname(fileURLToPath(import.meta.url))
+  return readFileSync(join(here, '../../src/styles/theme.css'), 'utf8')
+}
+
+/**
+ * Two colours blended the way `color-mix(in srgb, …)` blends them.
+ *
+ * The inspector tints a chip with the very colour it then writes on it —
+ * `color-mix(in srgb, var(--type-user) 12%, transparent)` behind text in
+ * `--type-user`. That reduces the contrast the palette was measured at, by an
+ * amount nobody can eyeball, so it is computed here instead.
+ *
+ * A translucent fill over an opaque backdrop is arithmetically the same as
+ * mixing the two at the same weight, so one function covers both spellings.
+ * sRGB rather than Oklab because that is the interpolation space the
+ * stylesheet asks for, and the two do not agree.
+ *
+ * @param colour - the tint.
+ * @param backdrop - what it is painted on.
+ * @param weight - how much of the tint, 0 to 1.
+ * @returns the colour a browser would composite.
+ */
+export function mix(colour: Rgb, backdrop: Rgb, weight: number): Rgb {
+  return [0, 1, 2].map((channel) =>
+    Math.round((colour[channel] as number) * weight + (backdrop[channel] as number) * (1 - weight)),
+  ) as unknown as Rgb
+}
+
+/**
+ * A percentage token, as a fraction.
+ *
+ * Read out of the stylesheet rather than copied into the test, so raising the
+ * tint is a change the measurement sees.
+ *
+ * @param name - the token name, without the leading `--`.
+ * @returns the value as a fraction of one.
+ * @throws when the theme does not define it as a percentage.
+ */
+export function readPercentage(name: string): number {
+  const match = new RegExp(`^\\s*--${name}:\\s*([\\d.]+)%;`, 'm').exec(readTheme())
+  if (match === null) throw new Error(`theme.css is missing --${name} as a percentage`)
+  return Number.parseFloat(match[1] as string) / 100
+}
+
+/**
  * Read `theme.css` and resolve its `light-dark()` tokens.
  *
  * @param scheme - which half of each pair to take.
@@ -175,10 +227,7 @@ export type Palette = ReadonlyMap<string, Rgb>
  *   a token that *is* a colour but cannot be parsed throws.
  */
 export function readPalette(scheme: Scheme): Palette {
-  // Not `new URL('...', import.meta.url)`: Vite rewrites that into an asset
-  // URL, and an asset URL is not a file on disk.
-  const here = dirname(fileURLToPath(import.meta.url))
-  const css = readFileSync(join(here, '../../src/styles/theme.css'), 'utf8')
+  const css = readTheme()
 
   const palette = new Map<string, Rgb>()
   const declaration = /^\s*--([\w-]+):\s*light-dark\((.+)\);\s*$/gm
