@@ -16,6 +16,10 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* The page itself never scrolls. Every scrollbar on screen belongs to one
+   * column, so the three histories can be read against each other instead of
+   * moving as one. */
+  overflow: hidden;
 }
 
 body {
@@ -135,13 +139,21 @@ body {
 .inspector-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  /* One row, pinned to the space available. Left implicit it would be `auto`,
+   * and the tallest column would stretch the row past the viewport — which is
+   * how three independent scrollers quietly become one page scrollbar. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
 .panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
+  /* A grid item's `min-height` is `auto`, so without this a long log makes the
+   * panel taller than its row rather than making its body scroll. */
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--border);
   background: var(--surface);
 }
@@ -176,8 +188,18 @@ body {
 }
 
 .panel-body {
-  overflow: auto;
+  overflow-y: auto;
   min-height: 0;
+  /* Reaching the end of one column must not start scrolling anything behind
+   * it — the columns are independent, including at their extremes. */
+  overscroll-behavior: contain;
+}
+
+/* Pinned under the body: a composer that scrolled away with the history would
+ * be unreachable exactly when the history got interesting. */
+.panel-footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface-secondary);
 }
 
 .panel-placeholder {
@@ -242,4 +264,162 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--muted);
+}
+
+/*
+ * The conversation: the same events as the left column, read as speech.
+ *
+ * A turn keeps the family tick its events wear in the stream — `--type-user`,
+ * `--type-assistant` — so the eye can carry a colour across the two columns
+ * and see that they are two readings of one log rather than two data sources.
+ */
+.turn-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--separator);
+  box-shadow: inset 2px 0 0 var(--turn-colour, transparent);
+}
+
+.turn:last-child {
+  border-bottom: none;
+}
+
+.turn[data-role='user'] {
+  --turn-colour: var(--type-user);
+  background: var(--surface-secondary);
+}
+
+.turn[data-role='assistant'] {
+  --turn-colour: var(--type-assistant);
+}
+
+/* Said, but not yet in the log. Coloured like the feed's own "not settled
+ * yet", because that is exactly what it is. */
+.turn[data-state='pending'] {
+  --turn-colour: var(--pending);
+}
+
+.turn[data-state='failed'] {
+  --turn-colour: var(--type-error);
+}
+
+.turn-role {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turn-colour, var(--muted));
+}
+
+.turn[data-state='pending'] .turn-role::after {
+  content: ' · sending';
+  color: var(--faint);
+}
+
+.turn-text {
+  margin: 0;
+  /* Deltas arrive mid-word and mid-line; collapsing whitespace would rewrite
+   * what the model actually said. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+
+/*
+ * The caret is CSS, not a character somebody appends. Nothing in the component
+ * tree knows a reply is in progress — `data-state` is derived, and this rule
+ * reads it.
+ */
+.turn[data-state='streaming'] .turn-text::after {
+  content: '▍';
+  margin-left: 0.05em;
+  color: var(--type-assistant);
+  animation: turn-caret 1.1s steps(2, jump-none) infinite;
+}
+
+@keyframes turn-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn[data-state='streaming'] .turn-text::after {
+    animation: none;
+  }
+}
+
+.turn-error {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--type-error);
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: end;
+  padding: 0.5rem 0.75rem;
+}
+
+.composer-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.composer-input {
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.composer-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.composer-send {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.composer-send:disabled,
+.composer-input:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.composer-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--type-error);
 }

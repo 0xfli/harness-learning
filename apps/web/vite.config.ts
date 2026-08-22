@@ -23,6 +23,7 @@ export default defineConfig({
     // absolute URL compiled into the client.
     proxy: {
       '/events': { target: harnessOrigin, changeOrigin: true },
+      '/messages': { target: harnessOrigin, changeOrigin: true },
       '/health': { target: harnessOrigin, changeOrigin: true },
     },
   },

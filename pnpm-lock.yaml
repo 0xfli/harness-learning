@@ -51,6 +51,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@harness/exchange':
+        specifier: workspace:*
+        version: link:../../packages/core/exchange
       '@harness/session':
         specifier: workspace:*
         version: link:../../packages/core/session
