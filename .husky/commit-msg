@@ -1,0 +1,35 @@
+# Conventional Commits 1.0.0, as required by AGENTS.md.
+# Subject: <type>[(scope)][!]: <description>
+
+subject=$(head -n 1 "$1")
+
+# Git's own generated subjects are not ours to police.
+case "$subject" in
+  'Merge '* | 'Revert '* | 'fixup!'* | 'squash!'* | '#'*) exit 0 ;;
+esac
+
+types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+
+fail() {
+  echo "commit-msg: $1" >&2
+  echo >&2
+  echo "  subject: $subject" >&2
+  echo >&2
+  echo "Conventional Commits: <type>[(scope)][!]: <description>" >&2
+  echo "  types:       $types" >&2
+  echo "  description: imperative, lowercase, no trailing period, <= 72 chars" >&2
+  echo "  example:     feat(session): stream assistant deltas to the terminal" >&2
+  exit 1
+}
+
+echo "$subject" | grep -Eq "^($types)(\([a-z0-9./_-]+\))?!?: .+" ||
+  fail 'subject does not start with a Conventional Commit type'
+
+description=${subject#*: }
+
+[ ${#description} -le 72 ] || fail "description is ${#description} characters, max 72"
+
+case "$description" in
+  [[:upper:]]*) fail 'description must start lowercase' ;;
+  *.) fail 'description must not end with a period' ;;
+esac

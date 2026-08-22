@@ -74,7 +74,16 @@ from inside an observer is rejected rather than silently re-entering.
 ## Scripts
 
 ```bash
-pnpm test        # vitest
-pnpm typecheck   # tsc --noEmit
-pnpm dev         # run the dev server with reload
+pnpm test          # vitest
+pnpm typecheck     # tsc --noEmit
+pnpm lint          # oxlint
+pnpm format        # oxfmt, in place
+pnpm run check     # format check + lint + typecheck + test, what CI runs
+pnpm dev           # run the dev server with reload
 ```
+
+`pnpm install` also installs the git hooks: staged files are formatted and
+linted on commit, commit subjects must be
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and
+typecheck plus tests run before a push. See [`AGENTS.md`](./AGENTS.md) for the
+full conventions.
