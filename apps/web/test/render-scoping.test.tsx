@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resetThemeStore, setThemeChoice } from '../src/theme-store.ts'
 import { mountInspector, wireEvent } from './helpers/inspector.tsx'
 
-// The two idle columns are replaced by counters. They render nothing, so the
-// only thing they can report is how many times React called them — which is
-// the whole question: does an event that only the event stream cares about
-// wake anything else on the page?
+// The other two columns are replaced by counters. They render nothing, so the
+// only thing they can report is how many times React called them — and the
+// question is about everything *between* the store and a column: does an event
+// wake the shell, the header, or the connection indicator, none of which asked
+// for one? Each column subscribing for itself is the point; a page that
+// re-renders as a whole is what this guards against.
 const renders = vi.hoisted(() => ({ conversation: 0, modelView: 0 }))
 
 vi.mock('../src/panels/conversation-panel.tsx', () => ({

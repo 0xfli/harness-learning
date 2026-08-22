@@ -98,6 +98,23 @@ yet. Added to the projection by `withOptimistic` and dropped the moment a
 client names the exchange before sending it — see
 `docs/adr/0005-the-conversation-is-a-projection.md`.
 
+**Request** — the messages one call to a provider is made of. Never stored:
+`deriveMessages` in `packages/core/exchange` folds it out of the log
+immediately before every call, so "what does the model see?" is answered by
+reading the log rather than by trusting an array somebody remembered to update.
+
+**Message rule** — the entry in `MESSAGE_RULES` that says how one event type
+contributes to the **request**. The whole answer to "what would I change to
+show the model something new?": an event type affects the request exactly when
+the table names it, and a test says so. `assistant/chunk`, `assistant/usage`
+and `error/stream` have no rule, deliberately.
+
+**Model view** — the right column: the **request**, printed as the JSON that
+goes on the wire. Not a description of it — the same fold over the same events
+gives the same bytes, and that identity is measured from the adapter's argument
+through to the text on screen. Implemented in `apps/web/src/model-view.ts`; see
+`docs/adr/0006-the-model-view-is-derived.md`.
+
 **Family** — the namespace at the front of an event type: `assistant/chunk` and
 `assistant/message` are both the `assistant` family. The unit the inspector
 colours, so a new type in a known family needs no new colour and reads as
@@ -122,8 +139,8 @@ reason the log is.
 - `packages/core/session` — the log. Pure; knows nothing about HTTP.
 - `packages/core/llm` — provider vocabulary and adapters. Knows nothing about
   the log.
-- `packages/core/exchange` — the seam between the two: runs a model and records
-  every delta of what it said.
+- `packages/core/exchange` — the seam between the two: folds the log into the
+  request, runs a model, and records every delta of what it said.
 - `packages/client/session-feed` — the replica. Knows about the feed, not about
   React.
 - `apps/dev-server` — HTTP front door. Knows about the log, not the reverse.

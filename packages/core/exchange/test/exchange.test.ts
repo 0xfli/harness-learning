@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '@harness/session'
 import { createScriptedAdapter } from '@harness/llm'
-import type { ModelAdapter, ModelMessage, StreamChunk } from '@harness/llm'
+import type { ModelAdapter, StreamChunk } from '@harness/llm'
 import { recordExchange, replayChunks } from '../src/exchange.ts'
-import { modelMessages } from '../src/messages.ts'
 
 /** Ids that read well in a failure message, instead of UUIDs. */
 function counter(prefix = 'm'): () => string {
@@ -234,64 +233,5 @@ describe('recordExchange', () => {
 
     expect(log.events.filter((event) => event.type === 'assistant/chunk')).toHaveLength(2)
     expect(typesOf(log).at(-1)).toBe('error/stream')
-  })
-})
-
-describe('modelMessages', () => {
-  it('is empty for an empty log', () => {
-    expect(modelMessages(new SessionLog())).toEqual([])
-  })
-
-  it('includes the new user message in the request it is about to make', async () => {
-    const log = new SessionLog()
-    let seen: readonly ModelMessage[] = []
-    const adapter: ModelAdapter = {
-      name: 'spy',
-      async *stream(messages): AsyncGenerator<StreamChunk> {
-        seen = messages
-        yield { type: 'text-delta', text: 'ok' }
-      },
-    }
-
-    await recordExchange({ log, adapter, text: 'what did I just say?', newId: counter() })
-
-    expect(seen).toEqual([{ role: 'user', content: 'what did I just say?' }])
-  })
-
-  it('grows with the conversation, oldest first', async () => {
-    const log = new SessionLog()
-    const adapter = createScriptedAdapter({ reply: 'reply' })
-    const newId = counter()
-
-    await recordExchange({ log, adapter, text: 'first', newId })
-    await recordExchange({ log, adapter, text: 'second', newId })
-
-    expect(modelMessages(log)).toEqual([
-      { role: 'user', content: 'first' },
-      { role: 'assistant', content: 'reply' },
-      { role: 'user', content: 'second' },
-      { role: 'assistant', content: 'reply' },
-    ])
-  })
-
-  it('ignores chunks, so the model is not shown the reply twice', async () => {
-    const log = new SessionLog()
-    const adapter = createScriptedAdapter({ reply: 'a b c d' })
-
-    await recordExchange({ log, adapter, text: 'hi', newId: counter() })
-
-    expect(modelMessages(log)).toEqual([
-      { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'a b c d' },
-    ])
-  })
-
-  it('ignores events it does not understand rather than guessing', () => {
-    const log = new SessionLog()
-    log.append('demo/hello', { message: 'not part of the conversation' })
-    log.append('user/message', { id: 'x', text: 'real' })
-    log.append('user/message', { id: 'y' })
-
-    expect(modelMessages(log)).toEqual([{ role: 'user', content: 'real' }])
   })
 })

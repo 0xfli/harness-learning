@@ -23,7 +23,7 @@
 
 import type { SessionEvent, SessionLog } from '@harness/session'
 import type { ModelAdapter } from '@harness/llm'
-import { modelMessages } from './messages.ts'
+import { deriveMessages } from './messages.ts'
 import { EXCHANGE_EVENT_TYPES } from './types.ts'
 import type { ExchangeResult, MessageId } from './types.ts'
 
@@ -75,8 +75,9 @@ export async function recordExchange(options: ExchangeOptions): Promise<Exchange
 
   // Read the history back out of the log rather than threading `text` through.
   // The log is the source of truth even for the request that is about to be
-  // made from it.
-  const messages = modelMessages(log)
+  // made from it, and this line is the only place the request comes from —
+  // recomputed per request, never carried between them.
+  const messages = deriveMessages(log)
 
   const deltas: string[] = []
   let reason = UNKNOWN_REASON
