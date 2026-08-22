@@ -30,7 +30,16 @@ export function App(): ReactNode {
   return (
     <div className="inspector">
       <header className="inspector-header">
-        <h1 className="inspector-title">session inspector</h1>
+        <div className="inspector-brand">
+          {/* Three bars on an accent tile: the page in miniature, drawn by the
+              stylesheet so the palette re-skins it along with everything
+              else. */}
+          <span className="inspector-mark" aria-hidden="true" />
+          <div className="inspector-identity">
+            <h1 className="inspector-title">Session inspector</h1>
+            <p className="inspector-subtitle">three projections of one log</p>
+          </div>
+        </div>
         <ConnectionStatus />
         <ThemeToggle />
       </header>

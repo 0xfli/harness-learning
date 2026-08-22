@@ -22,6 +22,11 @@
  * markup from a single palette. (HeroUI v3 renamed these from v2's
  * `content1..4`; these are the ones it actually ships.)
  *
+ * Below the palette sit the scales that are not colours: tint, elevation,
+ * radius and motion. They are here for the same reason the colours are —
+ * a stylesheet that names `--radius-md` can be re-proportioned in one file,
+ * and one that spells out `0.75rem` in forty places cannot.
+ *
  * HeroUI's defaults are tuned for cards floating on a page, where a shadow
  * does the separating. Measured against this layout they repeat the very fault
  * this palette exists to fix: `surface` vs `background` at 1.14:1, `border`
@@ -66,12 +71,29 @@
   --border: light-dark(oklch(0.599 0.008 286), oklch(0.57 0.008 286));
   --separator: light-dark(oklch(0.795 0.005 286), oklch(0.394 0.007 286));
 
-  --accent: light-dark(oklch(0.495 0.142 256.5), oklch(0.684 0.142 256.5));
+  /*
+   * The accent, the step it takes when pressed, and the ink that reads on
+   * both. `--on-accent` is near-white in light mode and near-black in dark,
+   * because the accent itself crosses over: a mid blue on a white page, a
+   * bright one on a dark page. A single "white text on the button" would fail
+   * in exactly one of the two schemes, which is the failure nobody notices.
+   */
+  --accent: light-dark(oklch(0.465 0.142 256.5), oklch(0.728 0.142 256.5));
+  --accent-strong: light-dark(oklch(0.4 0.148 256.5), oklch(0.8 0.12 256.5));
+  --on-accent: light-dark(oklch(0.985 0.002 256), oklch(0.17 0.014 256));
+
+  /*
+   * What a shadow is made of. Not black: a shadow on a light page is a cool
+   * grey, and on a dark one it is nearly the void itself. Every elevation
+   * below mixes this down to the alpha it needs, so the whole scale re-tunes
+   * from one line.
+   */
+  --shade: light-dark(oklch(0.42 0.028 286), oklch(0.06 0.012 286));
 
   /* Feed health. */
-  --live: light-dark(oklch(0.468 0.125 167.7), oklch(0.668 0.125 167.7));
-  --pending: light-dark(oklch(0.494 0.139 85.2), oklch(0.685 0.139 85.2));
-  --lost: light-dark(oklch(0.511 0.145 17), oklch(0.701 0.145 17));
+  --live: light-dark(oklch(0.438 0.125 167.7), oklch(0.709 0.125 167.7));
+  --pending: light-dark(oklch(0.464 0.139 85.2), oklch(0.73 0.139 85.2));
+  --lost: light-dark(oklch(0.479 0.145 17), oklch(0.744 0.145 17));
 
   /*
    * One colour per event *family* — the namespace before the `/`. Named for
@@ -82,20 +104,55 @@
    * lightness, so a family is the same colour in light mode as in dark — just
    * light enough, or dark enough, to be read on the surface behind it.
    */
-  --type-demo: light-dark(oklch(0.493 0.036 256.8), oklch(0.682 0.036 256.8));
-  --type-session: light-dark(oklch(0.509 0.164 288.2), oklch(0.696 0.164 288.2));
-  --type-user: light-dark(oklch(0.495 0.142 256.5), oklch(0.684 0.142 256.5));
-  --type-assistant: light-dark(oklch(0.468 0.125 167.7), oklch(0.668 0.125 167.7));
-  --type-tool: light-dark(oklch(0.494 0.139 85.2), oklch(0.685 0.139 85.2));
-  --type-error: light-dark(oklch(0.511 0.145 17), oklch(0.701 0.145 17));
+  --type-demo: light-dark(oklch(0.465 0.036 256.8), oklch(0.729 0.036 256.8));
+  --type-session: light-dark(oklch(0.479 0.164 288.2), oklch(0.747 0.164 288.2));
+  --type-user: light-dark(oklch(0.465 0.142 256.5), oklch(0.728 0.142 256.5));
+  --type-assistant: light-dark(oklch(0.438 0.125 167.7), oklch(0.709 0.125 167.7));
+  --type-tool: light-dark(oklch(0.464 0.139 85.2), oklch(0.73 0.139 85.2));
+  --type-error: light-dark(oklch(0.479 0.145 17), oklch(0.744 0.145 17));
 
   /* Where an unfamiliar family lands until it earns a name of its own. */
-  --type-slot-a: light-dark(oklch(0.479 0.092 206.3), oklch(0.673 0.092 206.3));
-  --type-slot-b: light-dark(oklch(0.506 0.113 314.4), oklch(0.695 0.113 314.4));
-  --type-slot-c: light-dark(oklch(0.498 0.097 64.4), oklch(0.688 0.097 64.4));
-  --type-slot-d: light-dark(oklch(0.483 0.125 132.8), oklch(0.671 0.125 132.8));
+  --type-slot-a: light-dark(oklch(0.448 0.092 206.3), oklch(0.719 0.092 206.3));
+  --type-slot-b: light-dark(oklch(0.478 0.113 314.4), oklch(0.742 0.113 314.4));
+  --type-slot-c: light-dark(oklch(0.47 0.097 64.4), oklch(0.734 0.097 64.4));
+  --type-slot-d: light-dark(oklch(0.452 0.125 132.8), oklch(0.718 0.125 132.8));
 
-  --row-height: 1.45rem;
+  /*
+   * How strongly a colour tints the chip it labels — the event type in the
+   * stream, the role on a turn, an error. One weight for all of them, so a
+   * tinted surface is recognisably the same idea wherever it appears, and
+   * `test/contrast.test.ts` reads this number out of this file and measures
+   * every family colour against its own tint. Raise it and the test says which
+   * family stopped being readable.
+   */
+  --tint: 12%;
+
+  /*
+   * Elevation. Three steps and no more: the chrome that floats over a
+   * scrolling column, the small lift a control gets, and the hairline that
+   * presses an input into the page.
+   */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--shade) 16%, transparent);
+  --shadow-md: 0 6px 18px -10px color-mix(in srgb, var(--shade) 40%, transparent);
+  --shadow-up: 0 -8px 20px -14px color-mix(in srgb, var(--shade) 35%, transparent);
+  --shadow-inset: inset 0 1px 2px color-mix(in srgb, var(--shade) 10%, transparent);
+
+  /* Corner radii, smallest first. `--radius-pill` is "however round it gets". */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-pill: 999px;
+
+  /*
+   * Motion. One curve — it decelerates hard, which is what makes a hover feel
+   * answered rather than animated — and two durations: one for a state a
+   * pointer is changing, one for a thing that moves on its own.
+   */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --fast: 120ms;
+  --slow: 240ms;
+
+  --row-height: 1.6rem;
   --gutter: 0.75rem;
 }
 

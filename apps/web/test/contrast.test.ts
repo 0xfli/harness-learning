@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { EVENT_COLOUR_TOKENS } from '../src/event-colour.ts'
-import { contrast, hex, oklch, readPalette, token } from './helpers/contrast.ts'
-import type { Palette, Scheme } from './helpers/contrast.ts'
+import {
+  contrast,
+  hex,
+  mix,
+  oklch,
+  readPalette,
+  readPercentage,
+  token,
+} from './helpers/contrast.ts'
+import type { Palette, Rgb, Scheme } from './helpers/contrast.ts'
 
 /*
  * The palette, measured.
@@ -19,6 +27,11 @@ import type { Palette, Scheme } from './helpers/contrast.ts'
  * - WCAG 2.2 SC 1.4.11 — 3:1 for the boundaries that carry structure. Panel
  *   edges and header rules are the only thing telling three columns apart.
  *
+ * Text on a *tinted* chip is measured against the tint, not against the fill
+ * behind it. An event type is written in its family colour on a wash of the
+ * same colour, and that wash costs contrast — a few tenths of a point, which
+ * is exactly the size of mistake an eye ratifies and a number does not.
+ *
  * These numbers are computed, not copied. Retuning a token by eye fails here.
  */
 
@@ -28,6 +41,14 @@ const STRUCTURE_AA = 3
 const FILL_STEP = 1.2
 
 const SCHEMES: readonly Scheme[] = ['light', 'dark']
+
+/**
+ * How strongly a chip is tinted with the colour written on it, read out of
+ * `theme.css` rather than repeated here. `.event-type`, `.turn-role`,
+ * `.turn-error` and `.composer-error` all paint a colour on a wash of itself,
+ * which costs contrast — this is how much.
+ */
+const TINT = readPercentage('tint')
 
 /** Every fill a piece of text can find itself on. */
 const SURFACES = ['background', 'surface', 'surface-secondary', 'surface-tertiary'] as const
@@ -53,6 +74,11 @@ function paletteFor(scheme: Scheme): Palette {
 describe.each(SCHEMES)('the %s palette', (scheme) => {
   const palette = paletteFor(scheme)
   const ratio = (a: string, b: string): number => contrast(token(palette, a), token(palette, b))
+  /** A colour on a chip tinted with itself, over the given fill. */
+  const onTint = (name: string, surface: string): number => {
+    const colour = token(palette, name)
+    return contrast(colour, mix(colour, token(palette, surface), TINT))
+  }
 
   describe('text', () => {
     it.each(TEXT.flatMap(({ name, on }) => on.map((surface) => [name, surface] as const)))(
@@ -71,16 +97,17 @@ describe.each(SCHEMES)('the %s palette', (scheme) => {
   })
 
   describe('the event families', () => {
-    // `.event-type` is painted with the family colour, on a row that is either
-    // resting on `--surface` or hovered onto `--surface-tertiary`.
+    // `.event-type` is a chip: the family colour, on a wash of the same colour
+    // over the row it sits in — resting on `--surface`, hovered onto
+    // `--surface-tertiary`.
     it.each(EVENT_COLOUR_TOKENS.map((t) => t.replace(/^--/, '')))(
       '--%s reads on a row, resting and hovered',
       (name) => {
         for (const surface of ['surface', 'surface-tertiary']) {
-          const measured = ratio(name, surface)
+          const measured = onTint(name, surface)
           expect(
             measured,
-            `--${name} ${hex(token(palette, name))} on --${surface} is ${measured.toFixed(2)}:1`,
+            `--${name} ${hex(token(palette, name))} on its own tint over --${surface} is ${measured.toFixed(2)}:1`,
           ).toBeGreaterThanOrEqual(TEXT_AA)
         }
       },
@@ -94,21 +121,41 @@ describe.each(SCHEMES)('the %s palette', (scheme) => {
   })
 
   describe('the conversation', () => {
-    // A turn wears its family colour as a role label, and the human's turns
-    // sit on a fill of their own — so the family tokens have to read on
-    // `--surface-secondary` as well as on a log row.
+    // A turn wears its family colour as a role chip tinted with itself, and
+    // the human's turns sit on a fill of their own — so the family tokens have
+    // to read on `--surface-secondary` as well as on a card over `--surface`.
     it.each(['type-user', 'type-assistant', 'type-error', 'pending'])(
       '--%s reads on a turn',
       (name) => {
         for (const surface of ['surface', 'surface-secondary']) {
-          const measured = ratio(name, surface)
+          const measured = onTint(name, surface)
           expect(
             measured,
-            `--${name} ${hex(token(palette, name))} on --${surface} is ${measured.toFixed(2)}:1`,
+            `--${name} ${hex(token(palette, name))} on its own tint over --${surface} is ${measured.toFixed(2)}:1`,
           ).toBeGreaterThanOrEqual(TEXT_AA)
         }
       },
     )
+  })
+
+  describe('the accent', () => {
+    // The send button is the one filled control on the page. `--accent` and
+    // `--accent-strong` cross over between schemes — a mid blue on a white
+    // page, a bright one on a dark page — so a single "white text on the
+    // button" would fail in exactly one of the two.
+    it.each(['accent', 'accent-strong'])('--on-accent reads on --%s', (fill) => {
+      const measured = ratio('on-accent', fill)
+
+      expect(
+        measured,
+        `--on-accent ${hex(token(palette, 'on-accent'))} on --${fill} ${hex(token(palette, fill))} is ${measured.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(TEXT_AA)
+    })
+
+    it('changes visibly when the button is hovered', () => {
+      // A hover state nobody can see is a hover state nobody has.
+      expect(hex(token(palette, 'accent-strong'))).not.toBe(hex(token(palette, 'accent')))
+    })
   })
 
   describe('structure', () => {
@@ -219,6 +266,21 @@ describe('the measurement itself', () => {
     // The failure mode this guards against is a parser that returns black for
     // anything it does not understand, turning a broken token into a pass.
     expect(() => token(readPalette('dark'), 'not-a-token')).toThrow(/missing/)
+  })
+
+  it('mixes the way color-mix(in srgb, …) does', () => {
+    const white: Rgb = [255, 255, 255]
+    const black: Rgb = [0, 0, 0]
+
+    expect(mix(black, white, 0.5)).toEqual([128, 128, 128])
+    expect(mix(black, white, 0)).toEqual(white)
+    expect(mix(black, white, 1)).toEqual(black)
+  })
+
+  it('reads the tint out of the stylesheet rather than guessing it', () => {
+    expect(TINT).toBeGreaterThan(0)
+    expect(TINT).toBeLessThan(1)
+    expect(() => readPercentage('not-a-token')).toThrow(/missing/)
   })
 })
 
