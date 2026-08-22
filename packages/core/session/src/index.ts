@@ -12,13 +12,7 @@ import { deepFreeze, snapshotJsonValue } from './json.ts'
 import type { JsonObject, SessionEvent, SessionObserver, Unobserve } from './types.ts'
 
 export { deepFreeze, snapshotJsonValue } from './json.ts'
-export type {
-  JsonObject,
-  JsonValue,
-  SessionEvent,
-  SessionObserver,
-  Unobserve,
-} from './types.ts'
+export type { JsonObject, JsonValue, SessionEvent, SessionObserver, Unobserve } from './types.ts'
 
 /** Knobs a caller may want to control, mostly for tests. */
 export interface SessionLogOptions {

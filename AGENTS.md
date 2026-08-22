@@ -18,6 +18,38 @@ Single-context — one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs
 
 ## Project conventions
 
+### Code style and checks
+
+Style is decided by tools, not by review. Never hand-format code, and never
+argue with the formatter.
+
+- **Format** with [oxfmt](https://oxc.rs): `pnpm run format`, or `pnpm run format:check`
+  to verify. `.oxfmtrc.json` is the whole style guide — single quotes, no
+  semicolons, everything else oxfmt's defaults.
+- **Lint** with [oxlint](https://oxc.rs): `pnpm run lint`, or `pnpm run lint:fix` to
+  autofix. `.oxlintrc.json` promotes the `correctness`, `suspicious` and `perf`
+  categories to errors.
+- **Everything**: `pnpm run check` runs format check, lint, typecheck and tests —
+  the same gate CI runs on every pull request.
+
+Silence a lint rule in the config, with the reason, rather than sprinkling
+inline `oxlint-disable` comments. A rule that is wrong for this codebase is
+wrong everywhere in it.
+
+### Git hooks
+
+[husky](https://typicode.github.io/husky/) hooks live in `.husky/` and are installed
+by `pnpm install`:
+
+| Hook         | What it enforces                                   |
+| ------------ | -------------------------------------------------- |
+| `pre-commit` | `lint-staged` — formats and lints the staged files |
+| `commit-msg` | the subject line is a Conventional Commit          |
+| `pre-push`   | `pnpm run typecheck` and `pnpm run test` pass      |
+
+`--no-verify` is for emergencies, not for a hurry. If a hook is wrong, fix the
+hook.
+
 ### Branching and merging
 
 - **Never commit directly to `main`.** `main` is integration-only and is updated exclusively by merging a pull request.
@@ -40,7 +72,7 @@ Every commit message **and** every PR title follows [Conventional Commits 1.0.0]
 - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - **Description**: imperative mood, lowercase, no trailing period, ≤ 72 characters.
 - **Scope** is optional and names the affected area, e.g. `feat(agent): add tool-call loop`.
-- **Breaking changes**: append `!` after the type/scope *and* add a `BREAKING CHANGE: <what broke and why>` footer.
+- **Breaking changes**: append `!` after the type/scope _and_ add a `BREAKING CHANGE: <what broke and why>` footer.
 - Reference issues in the footer: `Closes #12`, `Refs #12`.
 
 Examples:
