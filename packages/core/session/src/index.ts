@@ -9,13 +9,24 @@
  */
 
 import { deepFreeze, snapshotJsonValue } from './json.ts'
+import { asSessionEvent } from './jsonl.ts'
 import type { JsonObject, SessionEvent, SessionObserver, Unobserve } from './types.ts'
 
 export { deepFreeze, snapshotJsonValue } from './json.ts'
+export { asSessionEvent, decodeEvent, encodeEvent } from './jsonl.ts'
 export type { JsonObject, JsonValue, SessionEvent, SessionObserver, Unobserve } from './types.ts'
 
 /** Knobs a caller may want to control, mostly for tests. */
 export interface SessionLogOptions {
+  /**
+   * Events this log already contains — a session read back from a journal.
+   *
+   * Restoring is loading the facts, not rebuilding a state: history is the log
+   * and everything else is derived from it again, so a process that comes back
+   * has nothing else to rehydrate. Must be dense and zero-based, because `seq`
+   * is a position and a log with a hole in it is not the log.
+   */
+  readonly history?: readonly SessionEvent[]
   /** Wall clock used to stamp events. Defaults to `Date.now`. */
   readonly now?: () => number
   /**
@@ -53,6 +64,24 @@ export class SessionLog {
       ((error, event) => {
         console.error(`session observer failed for event #${event.seq} (${event.type})`, error)
       })
+
+    const history = options.history ?? []
+    for (const [index, candidate] of history.entries()) {
+      const event = asSessionEvent(candidate)
+      if (event === undefined) {
+        throw new TypeError(`restored history[${index}] is not a session event`)
+      }
+      if (event.seq !== index) {
+        // `seq` is a position, and `append` derives the next one from the
+        // length. A history that skips 4 would hand the next fact seq 4 as
+        // well, so two different facts would answer to one number and every
+        // cursor downstream would be pointing at whichever arrived last.
+        throw new TypeError(
+          `restored history[${index}] has seq ${event.seq}: history must be dense and zero-based`,
+        )
+      }
+      this.#log.push(event)
+    }
   }
 
   /** Number of events recorded so far, which is also the next `seq`. */

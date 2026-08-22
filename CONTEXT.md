@@ -28,6 +28,23 @@ woke it; a client told about `seq` 7 must be able to fetch `seq` 7.
 committed event. Observers are post-commit and cannot veto, undo, or reorder an
 append. An observer that throws is contained and reported, not propagated.
 
+**Journal** — the session log written down: one file, one event per JSONL line,
+appended as each event commits and replayed at startup. Implemented by
+`openJournal` in `packages/core/session/src/journal.ts`, the only module in the
+package that knows a filesystem exists. Restoring the journal is the whole of
+restoring a session — history is the log, and everything else is folded out of
+it again. See `docs/adr/0007-the-log-is-the-file.md`.
+
+**Durable before broadcast** — the journal is the log's first observer, so an
+event is on disk before any client hears its `seq`. Commit before broadcast,
+one layer down: a client that reconnects after a crash and asks for `seq` 7
+must find `seq` 7.
+
+**Repair** — what recovery does to a damaged journal: stop at the first line it
+cannot vouch for, truncate the file there, and report it. A journal is only
+ever a prefix. Bytes after the last newline are a record that was still being
+written, and a record that was still being written never happened.
+
 **Feed** — the SSE stream that carries the log to a client: full history first,
 then live events, in `seq` order. Implemented in `apps/dev-server/src/sse.ts`.
 
@@ -136,7 +153,9 @@ reason the log is.
 
 ## Layout
 
-- `packages/core/session` — the log. Pure; knows nothing about HTTP.
+- `packages/core/session` — the log. Pure; knows nothing about HTTP. Its
+  `/journal` entry point is the one place `node:fs` appears, so the browser
+  imports the vocabulary without the filesystem.
 - `packages/core/llm` — provider vocabulary and adapters. Knows nothing about
   the log.
 - `packages/core/exchange` — the seam between the two: folds the log into the
