@@ -140,6 +140,33 @@ shell wins, so the one-off above still overrules the file without editing it.
 | `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.         |
 | `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist. |
 
+### Behind a proxy
+
+Node's `fetch` ignores `http_proxy` and `https_proxy`, which every other tool
+on the machine honours. On a network that routes out through a proxy — and
+especially one where DNS lives proxy-side — that makes the harness the only
+thing that cannot reach the provider, and it says so with the least helpful
+sentence in Node:
+
+```
+error/stream  {"message":"fetch failed","chunks":0}
+```
+
+So the dev server reads the standard variables itself and routes the provider
+call accordingly. Nothing to configure: export them as usual and the boot
+banner will report `proxy: http://host:port`, credentials stripped. `no_proxy`
+is honoured, and a machine with no proxy set keeps using the runtime's own
+`fetch` untouched.
+
+The improvement worth having either way is the message. `fetch failed` now
+reads:
+
+```
+openai:deepseek-v4-flash could not be reached at https://api.deepseek.com/chat/completions: ENOTFOUND: getaddrinfo ENOTFOUND api.deepseek.com
+```
+
+which is the difference between a bug report and an afternoon.
+
 ## Kill it and carry on
 
 Now the part the first six steps were for. With a conversation on screen, kill

@@ -12,6 +12,7 @@
 
 import { createOpenAiAdapter, createScriptedAdapter } from '@harness/llm'
 import type { ModelAdapter } from '@harness/llm'
+import { proxyFetchFromEnv } from './proxy.ts'
 
 /** The variables that pick and configure an adapter. */
 export interface AdapterEnv {
@@ -23,6 +24,13 @@ export interface AdapterEnv {
   readonly HARNESS_BASE_URL?: string | undefined
   /** Milliseconds between scripted deltas. */
   readonly HARNESS_SCRIPT_DELAY_MS?: string | undefined
+  /** Standard proxy variables, read by {@link proxyFetchFromEnv}. */
+  readonly http_proxy?: string | undefined
+  readonly HTTP_PROXY?: string | undefined
+  readonly https_proxy?: string | undefined
+  readonly HTTPS_PROXY?: string | undefined
+  readonly no_proxy?: string | undefined
+  readonly NO_PROXY?: string | undefined
 }
 
 /** Slow enough to watch arrive, fast enough not to be annoying. */
@@ -45,7 +53,15 @@ export function adapterFromEnv(env: AdapterEnv = process.env): ModelAdapter {
       throw new Error('HARNESS_API_KEY is set but HARNESS_MODEL is not; refusing to guess a model')
     }
     const baseUrl = nonEmpty(env.HARNESS_BASE_URL)
-    return createOpenAiAdapter({ model, apiKey, ...(baseUrl === undefined ? {} : { baseUrl }) })
+    // Only when the machine actually has a proxy configured; otherwise the
+    // adapter keeps the runtime's own `fetch`.
+    const proxied = proxyFetchFromEnv(env)
+    return createOpenAiAdapter({
+      model,
+      apiKey,
+      ...(baseUrl === undefined ? {} : { baseUrl }),
+      ...(proxied === undefined ? {} : { fetch: proxied }),
+    })
   }
 
   const configured = Number(env.HARNESS_SCRIPT_DELAY_MS)

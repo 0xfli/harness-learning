@@ -156,4 +156,53 @@ describe('createOpenAiAdapter', () => {
     expect(createOpenAiAdapter({ model: 'deepseek-chat', fetch }).name).toBe('openai:deepseek-chat')
     expect(createOpenAiAdapter({ model: 'x', name: 'local', fetch }).name).toBe('local')
   })
+
+  it('says why the request never left, rather than only "fetch failed"', async () => {
+    // What Node actually throws when a name will not resolve: a useless
+    // message with the whole story one layer down in `cause`.
+    const failed = new TypeError('fetch failed')
+    failed.cause = Object.assign(new Error('getaddrinfo ENOTFOUND api.example.com'), {
+      code: 'ENOTFOUND',
+    })
+    const fetch = (() => Promise.reject(failed)) as unknown as typeof globalThis.fetch
+    const adapter = createOpenAiAdapter({
+      model: 'm',
+      baseUrl: 'https://api.example.com/v1',
+      fetch,
+    })
+
+    const failure = await collect(adapter.stream(HELLO)).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ModelStreamError)
+    const { message } = failure as Error
+    expect(message).toContain('could not be reached')
+    // The endpoint, so a typo in the base url is visible on sight.
+    expect(message).toContain('https://api.example.com/v1/chat/completions')
+    expect(message).toContain('ENOTFOUND')
+    expect((failure as Error).cause).toBe(failed)
+  })
+
+  it('still says something when the failure carries no cause at all', async () => {
+    const fetch = (() =>
+      Promise.reject(new TypeError('fetch failed'))) as unknown as typeof globalThis.fetch
+    const adapter = createOpenAiAdapter({ model: 'm', fetch })
+
+    await expect(collect(adapter.stream(HELLO))).rejects.toThrow(
+      /could not be reached.*fetch failed/,
+    )
+  })
+
+  it('lets an abort stay an abort, because the caller asked for it', async () => {
+    // Wrapping this would make "the user navigated away" indistinguishable
+    // from "the provider is unreachable" in the log.
+    const aborted = new Error('This operation was aborted')
+    aborted.name = 'AbortError'
+    const fetch = (() => Promise.reject(aborted)) as unknown as typeof globalThis.fetch
+    const adapter = createOpenAiAdapter({ model: 'm', fetch })
+
+    const failure = await collect(adapter.stream(HELLO)).catch((error: unknown) => error)
+
+    expect(failure).toBe(aborted)
+    expect(failure).not.toBeInstanceOf(ModelStreamError)
+  })
 })

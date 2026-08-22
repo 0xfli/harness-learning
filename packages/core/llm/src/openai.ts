@@ -56,7 +56,8 @@ export function createOpenAiAdapter(options: OpenAiAdapterOptions): ModelAdapter
       }
       if (options.apiKey !== undefined) headers.authorization = `Bearer ${options.apiKey}`
 
-      const response = await doFetch(`${baseUrl}/chat/completions`, {
+      const endpoint = `${baseUrl}/chat/completions`
+      const request = {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -68,7 +69,26 @@ export function createOpenAiAdapter(options: OpenAiAdapterOptions): ModelAdapter
           stream_options: { include_usage: true },
         }),
         ...(streamOptions.signal === undefined ? {} : { signal: streamOptions.signal }),
-      })
+      }
+
+      let response: Response
+      try {
+        response = await doFetch(endpoint, request)
+      } catch (error) {
+        // An abort is the caller's own doing and must stay recognisable as
+        // one; everything else is the request never leaving the building.
+        if (isAbort(error)) throw error
+        // `fetch failed` on its own is the least useful sentence in Node: it
+        // covers a typo in the base url, a provider that is down, a name that
+        // does not resolve and a machine whose only route out is a proxy. The
+        // reason is in `cause`, one layer down, where nobody looks.
+        throw new ModelStreamError(
+          `${name} could not be reached at ${endpoint}${reasonOf(error)}`,
+          {
+            cause: error,
+          },
+        )
+      }
 
       if (!response.ok) {
         const detail = await response.text().catch(() => '')
@@ -146,6 +166,36 @@ function* chunksOf(data: string, name: string): Generator<StreamChunk> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Whether a rejection is the caller's own abort signal firing.
+ *
+ * Matched on `name` rather than `instanceof DOMException`, because the class a
+ * runtime throws here is not something to depend on.
+ */
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+/**
+ * The most specific thing that can be said about a failed connection.
+ *
+ * Node buries the real reason — `ENOTFOUND`, `ECONNREFUSED`, a TLS complaint —
+ * in `cause`, leaving the top-level message as the word-for-word useless
+ * `fetch failed`. This digs it back out so the recorded `error/stream` event
+ * says something a person can act on a week later.
+ *
+ * @param error - whatever `fetch` rejected with.
+ * @returns a `: reason` suffix, or an empty string when there is nothing to add.
+ */
+function reasonOf(error: unknown): string {
+  const cause: unknown = error instanceof Error ? error.cause : undefined
+  const code = isRecord(cause) && typeof cause.code === 'string' ? cause.code : undefined
+  const message = cause instanceof Error ? cause.message : undefined
+  const detail = [code, message].filter((part) => part !== undefined && part.length > 0).join(': ')
+  if (detail.length > 0) return `: ${truncate(detail)}`
+  return error instanceof Error && error.message.length > 0 ? `: ${truncate(error.message)}` : ''
 }
 
 /** Keep a provider's prose out of the log at full length. */

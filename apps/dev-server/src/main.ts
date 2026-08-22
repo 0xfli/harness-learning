@@ -8,6 +8,7 @@
 import { restoreSession } from '@harness/session/journal'
 import { adapterFromEnv } from './adapter.ts'
 import { describePath, loadEnvFile } from './env-file.ts'
+import { describeProxy, proxySettings } from './proxy.ts'
 import { createHarnessServer, seedDemoEvents } from './server.ts'
 
 // First, because everything below reads `process.env` and a file that lands
@@ -17,6 +18,7 @@ const envFile = loadEnvFile({ path: process.env.HARNESS_ENV_FILE })
 const port = Number(process.env.PORT ?? 8787)
 const journalPath = process.env.HARNESS_SESSION ?? '.harness/session.jsonl'
 const adapter = adapterFromEnv()
+const proxy = describeProxy(proxySettings())
 
 // Before the server exists, because everything the harness knows comes back
 // from here — including whether this is a fresh session at all.
@@ -35,6 +37,9 @@ server.listen(port, () => {
   // The path only. What is inside it is the reason the file exists.
   if (envFile !== undefined) console.log(`  env: ${describePath(envFile)}`)
   console.log(`  model: ${adapter.name}`)
+  // Worth a line: a request that leaves by a proxy fails in ways that look
+  // nothing like a proxy problem, and this is the only place it is visible.
+  if (proxy !== undefined) console.log(`  proxy: ${proxy}`)
   console.log(`  journal: ${journalPath} (${restored} event${restored === 1 ? '' : 's'} restored)`)
   console.log(`  curl -N http://localhost:${port}/events`)
   console.log(
