@@ -5,13 +5,15 @@ Building a coding agent harness from scratch, one step at a time.
 
 ## What exists today
 
-An append-only session event log, an SSE feed over it, and a browser-side
-replica of that feed. There is no agent and no UI yet — `curl` is the demo.
+An append-only session event log, an SSE feed over it, a browser-side replica
+of that feed, and a session inspector that renders it. There is no agent yet —
+the log is filled by hand with `curl`.
 
 ```
 packages/core/session          The log. Pure; knows nothing about HTTP.
 packages/client/session-feed   The replica. Knows about the feed, not about React.
 apps/dev-server                HTTP front door: an SSE feed you can curl.
+apps/web                       The session inspector: three columns over one log.
 ```
 
 See [`CONTEXT.md`](./CONTEXT.md) for the vocabulary and [`docs/adr/`](./docs/adr)
@@ -31,19 +33,30 @@ pnpm install
 pnpm dev
 ```
 
-In another terminal, open the feed. You get the full history first, then live
-events, in `seq` order:
+That starts the log on `http://localhost:8787` and the inspector on
+`http://localhost:5173`. Open the inspector: three columns, and the left one
+already filled with the seeded history. The feed is proxied through Vite, so
+the page never learns which origin the log lives on.
 
-```bash
-curl -N http://localhost:8787/events
-```
-
-In a third terminal, append a fact and watch it land in every open stream:
+In another terminal, append a fact and watch every open tab show it at the same
+moment, with nothing polling:
 
 ```bash
 curl -X POST http://localhost:8787/events \
   -H 'content-type: application/json' \
   -d '{"type":"demo/hello","data":{"from":"curl"}}'
+```
+
+Refresh the page. It looks exactly as it did: the client keeps nothing, and the
+server replays the whole log to every new connection.
+
+## Or without a browser
+
+The feed is plain SSE, so `curl` is a complete client. You get the full history
+first, then live events, in `seq` order:
+
+```bash
+curl -N http://localhost:8787/events
 ```
 
 Kill the reader, then reconnect claiming what you already saw. The stream picks
@@ -90,15 +103,30 @@ returns the same frozen array until the log actually grows; see
 [`docs/adr/0002`](./docs/adr/0002-snapshot-identity-is-the-contract.md) for why
 that identity is the whole contract.
 
+In the inspector that is one hook and no state:
+
+```ts
+export function useSessionEvents(): readonly SessionEvent[] {
+  const feed = useFeed()
+  return useSyncExternalStore(feed.events.subscribe, feed.events.getSnapshot)
+}
+```
+
+Every panel is a projection of what that returns. No component holds
+conversation or domain data in `useState`, and no component fetches for itself.
+
 ## Scripts
 
 ```bash
-pnpm test          # vitest
-pnpm typecheck     # tsc --noEmit
-pnpm lint          # oxlint
-pnpm format        # oxfmt, in place
-pnpm run check     # format check + lint + typecheck + test, what CI runs
-pnpm dev           # run the dev server with reload
+pnpm test        # vitest: the node suites and the jsdom one
+pnpm typecheck   # tsc --noEmit, workspace and web app
+pnpm lint        # oxlint
+pnpm format      # oxfmt, in place
+pnpm run check   # format check + lint + typecheck + test, what CI runs
+pnpm build       # production build of the inspector
+pnpm dev         # log on :8787 and inspector on :5173, both with reload
+pnpm dev:server  # just the log
+pnpm dev:web     # just the inspector
 ```
 
 `pnpm install` also installs the git hooks: staged files are formatted and

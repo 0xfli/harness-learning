@@ -1,0 +1,33 @@
+/*
+ * Semantic colours, named for what they mean rather than what they look like.
+ *
+ * A dozen event types are coming. Naming a colour `--type-lifecycle` rather
+ * than `--blue` is what lets the palette be re-tuned once instead of hunted
+ * through markup.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --surface-sunken: #0a0c10;
+  --surface: #101319;
+  --surface-raised: #161a22;
+  --border: #232936;
+  --border-strong: #333c4d;
+
+  --text: #dde3ee;
+  --text-muted: #8792a5;
+  --text-faint: #596273;
+
+  --accent: #6aa9ff;
+
+  --live: #4ec9a0;
+  --pending: #e3b341;
+  --lost: #e06c75;
+
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --row-height: 1.45rem;
+  --gutter: 0.75rem;
+}

@@ -52,12 +52,18 @@ that is freshly allocated per read says "everything changed" forever — see
 projections; so is the message list a model sees. A projection is recomputed,
 never maintained.
 
+**Inspector** — the three-column page: the event stream on the left, the
+conversation in the middle, the model's view on the right. Three projections of
+one log; keeping them in agreement is the whole job of a harness. Implemented in
+`apps/web`.
+
 ## Layout
 
 - `packages/core/session` — the log. Pure; knows nothing about HTTP.
 - `packages/client/session-feed` — the replica. Knows about the feed, not about
   React.
 - `apps/dev-server` — HTTP front door. Knows about the log, not the reverse.
+- `apps/web` — the inspector. Reads the replica; writes nothing.
 
 ## Decisions
 

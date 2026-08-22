@@ -5,7 +5,8 @@
   "description": "Client half of the feed: holds the events received so far and hands them out as a cached snapshot.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "dependencies": {
     "@harness/session": "workspace:*"

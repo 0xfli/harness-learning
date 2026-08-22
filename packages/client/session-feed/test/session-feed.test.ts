@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSessionFeed } from '../src/index.ts'
 import type { FeedError, SessionFeed, SessionFeedOptions } from '../src/index.ts'
-import { fakeTransport, wireEvent } from './helpers/fake-source.ts'
-import type { FakeTransport } from './helpers/fake-source.ts'
+import { fakeTransport, wireEvent } from '../src/testing.ts'
+import type { FakeTransport } from '../src/testing.ts'
 
 /**
  * Build a feed over a hand-driven transport.
