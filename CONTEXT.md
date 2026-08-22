@@ -57,6 +57,11 @@ conversation in the middle, the model's view on the right. Three projections of
 one log; keeping them in agreement is the whole job of a harness. Implemented in
 `apps/web`.
 
+**Family** — the namespace at the front of an event type: `assistant/chunk` and
+`assistant/message` are both the `assistant` family. The unit the inspector
+colours, so a new type in a known family needs no new colour and reads as
+related on sight. Implemented in `apps/web/src/event-colour.ts`.
+
 ## Layout
 
 - `packages/core/session` — the log. Pure; knows nothing about HTTP.
