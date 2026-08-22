@@ -1,0 +1,22 @@
+{
+  "name": "harness-learning",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Building a coding agent harness from scratch, one step at a time.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @harness/dev-server run dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.2"
+  }
+}
