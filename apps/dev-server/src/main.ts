@@ -1,12 +1,18 @@
 /**
- * Entry point: restore the session from disk, pick a model, then serve it.
+ * Entry point: read the environment, restore the session from disk, pick a
+ * model, then serve it.
  *
  * @module
  */
 
 import { restoreSession } from '@harness/session/journal'
 import { adapterFromEnv } from './adapter.ts'
+import { describePath, loadEnvFile } from './env-file.ts'
 import { createHarnessServer, seedDemoEvents } from './server.ts'
+
+// First, because everything below reads `process.env` and a file that lands
+// after the first read is a file that only works sometimes.
+const envFile = loadEnvFile({ path: process.env.HARNESS_ENV_FILE })
 
 const port = Number(process.env.PORT ?? 8787)
 const journalPath = process.env.HARNESS_SESSION ?? '.harness/session.jsonl'
@@ -26,6 +32,8 @@ if (restored === 0) seedDemoEvents(log)
 
 server.listen(port, () => {
   console.log(`session log listening on http://localhost:${port}`)
+  // The path only. What is inside it is the reason the file exists.
+  if (envFile !== undefined) console.log(`  env: ${describePath(envFile)}`)
   console.log(`  model: ${adapter.name}`)
   console.log(`  journal: ${journalPath} (${restored} event${restored === 1 ? '' : 's'} restored)`)
   console.log(`  curl -N http://localhost:${port}/events`)

@@ -116,13 +116,28 @@ HARNESS_BASE_URL=https://api.deepseek.com/v1 \
 pnpm dev
 ```
 
-| Variable                  | Effect                                                     |
-| ------------------------- | ---------------------------------------------------------- |
-| `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one. |
-| `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.       |
-| `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                            |
-| `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.      |
-| `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.        |
+That is fine once and a bad habit daily — the key lands in your shell history,
+in the process table, and eventually in a screenshot. Write it down instead:
+
+```bash
+cp .env.example .env   # then fill in the key; .env is git-ignored
+pnpm dev
+```
+
+The server looks for `.env` in the working directory and every directory above
+it, so the one at the root of the workspace is found whether you run `pnpm dev`
+from there or `tsx src/main.ts` from inside `apps/dev-server`. It prints the
+path it used at boot, and never what was in it. Anything already set in the
+shell wins, so the one-off above still overrules the file without editing it.
+
+| Variable                  | Effect                                                      |
+| ------------------------- | ----------------------------------------------------------- |
+| `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one.  |
+| `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.        |
+| `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                             |
+| `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.       |
+| `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.         |
+| `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist. |
 
 ## Kill it and carry on
 
