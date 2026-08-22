@@ -124,14 +124,17 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
     log,
     server,
     close: async () => {
-      for (const closeStream of [...openStreams]) closeStream()
+      for (const closeStream of openStreams) closeStream()
       openStreams.clear()
       // Keep-alive sockets would otherwise hold the close open until they time
       // out. This is a dev server; shutdown should be immediate.
       server.closeAllConnections()
       await new Promise<void>((resolve, reject) => {
         server.close((error) => {
-          if (error !== undefined && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+          if (
+            error !== undefined &&
+            (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING'
+          ) {
             reject(error)
             return
           }

@@ -134,7 +134,9 @@ describe('immutability', () => {
 
     expect(snapshot).toHaveLength(1)
     expect(log.events).toHaveLength(2)
-    expect(() => (snapshot as SessionEvent[]).push(log.events[1] as SessionEvent)).toThrow(TypeError)
+    expect(() => (snapshot as SessionEvent[]).push(log.events[1] as SessionEvent)).toThrow(
+      TypeError,
+    )
   })
 })
 
@@ -241,7 +243,7 @@ describe('observers', () => {
   })
 
   it('contains a throwing observer instead of failing the committed append', () => {
-    const onObserverError = vi.fn()
+    const onObserverError = vi.fn<(error: unknown, event: SessionEvent) => void>()
     const log = new SessionLog({ onObserverError })
     const survivor: number[] = []
     log.observe(() => {
@@ -259,7 +261,7 @@ describe('observers', () => {
   })
 
   it('rejects an append made from inside an observer', () => {
-    const onObserverError = vi.fn()
+    const onObserverError = vi.fn<(error: unknown, event: SessionEvent) => void>()
     const log = new SessionLog({ onObserverError })
     log.observe(() => {
       log.append('demo/reentrant')

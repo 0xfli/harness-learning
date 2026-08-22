@@ -2,8 +2,8 @@
   "name": "@harness/dev-server",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "HTTP front door for the session log: an SSE feed you can curl.",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts"

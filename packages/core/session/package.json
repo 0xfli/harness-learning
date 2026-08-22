@@ -2,8 +2,8 @@
   "name": "@harness/session",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Append-only session event log: the only place the harness records what happened.",
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   }
