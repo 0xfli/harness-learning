@@ -154,9 +154,14 @@ error/stream  {"message":"fetch failed","chunks":0}
 
 So the dev server reads the standard variables itself and routes the provider
 call accordingly. Nothing to configure: export them as usual and the boot
-banner will report `proxy: http://host:port`, credentials stripped. `no_proxy`
-is honoured, and a machine with no proxy set keeps using the runtime's own
-`fetch` untouched.
+banner will report `proxy: http://host:port`, credentials stripped. A machine
+with no proxy set keeps using the runtime's own `fetch` untouched.
+
+**Loopback is never proxied**, whatever `no_proxy` says. A proxy is how a
+request leaves the machine, and `http://localhost:11434/v1` does not leave it —
+routing a local model through a proxy turns it into a 502 with no visible
+cause. Entries you do set in `no_proxy` are honoured alongside loopback, not
+instead of it.
 
 The improvement worth having either way is the message. `fetch failed` now
 reads:

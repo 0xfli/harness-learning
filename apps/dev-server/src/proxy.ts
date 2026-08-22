@@ -40,22 +40,37 @@ export interface ProxyEnv {
 export interface ProxySettings {
   readonly httpProxy: string | undefined
   readonly httpsProxy: string | undefined
-  readonly noProxy: string | undefined
+  /** Hosts to reach directly. Always covers loopback. */
+  readonly noProxy: string
 }
 
 /**
  * Read the proxy variables, preferring the lowercase spelling.
  *
+ * Loopback is always added to `noProxy`, in front of whatever the environment
+ * asked for. A proxy is how a request leaves the machine, and a request to
+ * `localhost` does not leave the machine — sending it through one turns a
+ * local provider into a 502 for no reason anybody can see. This is exactly
+ * the trap `HARNESS_BASE_URL=http://localhost:11434/v1` would fall into, and
+ * `createOpenAiAdapter` documents that case as supported.
+ *
+ * Prepended rather than substituted, so an entry the environment did set is
+ * still honoured alongside it.
+ *
  * @param env - the process environment, or a stand-in.
- * @returns the reconciled settings, each field `undefined` when unset.
+ * @returns the reconciled settings. `noProxy` always covers loopback.
  */
 export function proxySettings(env: ProxyEnv = process.env): ProxySettings {
+  const configured = nonEmpty(env.no_proxy) ?? nonEmpty(env.NO_PROXY)
   return {
     httpProxy: nonEmpty(env.http_proxy) ?? nonEmpty(env.HTTP_PROXY),
     httpsProxy: nonEmpty(env.https_proxy) ?? nonEmpty(env.HTTPS_PROXY),
-    noProxy: nonEmpty(env.no_proxy) ?? nonEmpty(env.NO_PROXY),
+    noProxy: configured === undefined ? LOOPBACK : `${LOOPBACK},${configured}`,
   }
 }
+
+/** The names that mean "this machine", and so can never need a proxy. */
+const LOOPBACK = 'localhost,127.0.0.1,::1'
 
 /**
  * A `fetch` that honours the proxy variables, when there are any.
@@ -81,7 +96,7 @@ export function proxyFetchFromEnv(
   const dispatcher = new EnvHttpProxyAgent({
     ...(settings.httpProxy === undefined ? {} : { httpProxy: settings.httpProxy }),
     ...(settings.httpsProxy === undefined ? {} : { httpsProxy: settings.httpsProxy }),
-    ...(settings.noProxy === undefined ? {} : { noProxy: settings.noProxy }),
+    noProxy: settings.noProxy,
   })
 
   return ((input, init) =>
