@@ -2,12 +2,13 @@
  * The log, written down.
  *
  * A journal is one file holding one session: every event that has been
- * committed, in `seq` order, one JSONL line each, appended as it commits. It
- * is the only part of `@harness/session` that knows a filesystem exists, which
- * is why it lives behind its own entry point — the browser half of this
- * codebase imports the log's vocabulary and must never pull in `node:fs`.
+ * committed, in `seq` order, one JSONL line each, appended as it commits. With
+ * `session-store.ts` it is all that `@harness/session` knows about
+ * filesystems, which is why the two live behind entry points of their own —
+ * the browser half of this codebase imports the log's vocabulary and must
+ * never pull in `node:fs`.
  *
- * Two rules do all the work:
+ * Three rules do all the work:
  *
  * 1. **A journal is only ever a prefix.** Recovery stops at the first line it
  *    cannot vouch for and truncates the file there. A torn trailing line from
@@ -17,19 +18,15 @@
  * 2. **Durable before broadcast.** The journal is the first observer attached
  *    to the log, so an event is on disk before any client hears its `seq` —
  *    the same argument as commit-before-broadcast, one layer down.
+ * 3. **The first append makes the file.** Opening a journal reads; it does not
+ *    create. A session nobody said anything in has no events, and a session
+ *    with no events never happened — it must not leave a nought-byte file for
+ *    the session store to list. See `docs/adr/0009-a-run-starts-a-session.md`.
  *
  * @module @harness/session/journal
  */
 
-import {
-  closeSync,
-  fstatSync,
-  ftruncateSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  writeSync,
-} from 'node:fs'
+import { closeSync, ftruncateSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { SessionLog } from './index.ts'
 import type { SessionLogOptions } from './index.ts'
@@ -50,7 +47,10 @@ export interface JournalRepair {
 
 /** How to open a journal. */
 export interface JournalOptions {
-  /** File to read and append to. Missing parent directories are created. */
+  /**
+   * File to read and append to. Neither it nor its parent directories have to
+   * exist: they are created by the first append, not by opening.
+   */
   readonly path: string
   /**
    * Told when recovery had to discard a damaged tail. Defaults to
@@ -58,6 +58,14 @@ export interface JournalOptions {
    * becomes a mystery a week later.
    */
   readonly onRepair?: (repair: JournalRepair) => void
+}
+
+/** What a journal file holds, as far as it can be vouched for. */
+export interface JournalContents {
+  /** Events read back, in `seq` order. A prefix of the log. */
+  readonly events: readonly SessionEvent[]
+  /** The damage recovery would have to repair, when the tail is unreadable. */
+  readonly repair: JournalRepair | undefined
 }
 
 /** An open journal: what it recovered, and a way to add to it. */
@@ -74,11 +82,30 @@ export interface SessionJournal {
    * operating system. That is what makes a killed process — as opposed to a
    * lost machine — a non-event: the page cache outlives the process.
    *
+   * The first call is also what creates the file and any missing directory
+   * above it, so a journal that is never appended to leaves nothing behind.
+   *
    * @param event - the event to persist.
    */
   append(event: SessionEvent): void
   /** Close the file. Further appends throw. */
   close(): void
+}
+
+/**
+ * Read a journal file without opening, creating, or repairing it.
+ *
+ * The read-only half of recovery: it stops at the first line it cannot vouch
+ * for and reports the damage instead of truncating it away. Listing what is on
+ * disk must not rewrite it — a session store summarises every file it can see,
+ * and a summary is a projection, not an edit.
+ *
+ * @param path - the file to read. A missing file is an empty journal.
+ * @returns the events read back, and the damage found after them.
+ */
+export function readJournal(path: string): JournalContents {
+  const { events, repair } = scan(readBytes(path))
+  return { events: Object.freeze(events), repair }
 }
 
 /**
@@ -97,39 +124,38 @@ export function openJournal(options: JournalOptions): SessionJournal {
       )
     })
 
-  mkdirSync(dirname(path), { recursive: true })
-  // "a+" both creates the file and pins every write to the end of it, so two
-  // writers interleave whole lines rather than overwriting each other's.
-  const fd = openSync(path, 'a+')
+  const { events, valid, repair } = scan(readBytes(path))
+  if (repair !== undefined) {
+    // Truncating is the point, not tidiness: the next append would otherwise
+    // continue the half-written line and produce one corrupt record where
+    // there were two, taking a readable prefix down with it.
+    truncate(path, valid)
+    onRepair(repair)
+  }
+
+  /** Opened by the first append, so an unused journal leaves no file. */
+  let fd: number | undefined
   let closed = false
 
-  try {
-    const { events, valid, repair } = recover(fd)
-    if (repair !== undefined) {
-      // Truncating is the point, not tidiness: the next append would otherwise
-      // continue the half-written line and produce one corrupt record where
-      // there were two, taking a readable prefix down with it.
-      ftruncateSync(fd, valid)
-      onRepair(repair)
-    }
-
-    return {
-      path,
-      events: Object.freeze(events),
-      repair,
-      append(event: SessionEvent): void {
-        if (closed) throw new Error(`session journal ${path} is closed`)
-        writeSync(fd, encodeEvent(event))
-      },
-      close(): void {
-        if (closed) return
-        closed = true
-        closeSync(fd)
-      },
-    }
-  } catch (error) {
-    closeSync(fd)
-    throw error
+  return {
+    path,
+    events: Object.freeze(events),
+    repair,
+    append(event: SessionEvent): void {
+      if (closed) throw new Error(`session journal ${path} is closed`)
+      if (fd === undefined) {
+        mkdirSync(dirname(path), { recursive: true })
+        // "a" pins every write to the end of the file, so two writers
+        // interleave whole lines rather than overwriting each other's.
+        fd = openSync(path, 'a')
+      }
+      writeSync(fd, encodeEvent(event))
+    },
+    close(): void {
+      if (closed) return
+      closed = true
+      if (fd !== undefined) closeSync(fd)
+    },
   }
 }
 
@@ -181,15 +207,12 @@ export function restoreSession(options: RestoreOptions): RestoredSession {
  * has to be a byte offset — one multi-byte character in a payload and a
  * character count cuts a record in the wrong place.
  */
-function recover(fd: number): {
+function scan(buffer: Buffer): {
   events: SessionEvent[]
   valid: number
   repair: JournalRepair | undefined
 } {
-  const size = fstatSync(fd).size
-  const buffer = Buffer.allocUnsafe(size)
-  if (size > 0) readSync(fd, buffer, 0, size, 0)
-
+  const size = buffer.byteLength
   const events: SessionEvent[] = []
   let start = 0
 
@@ -232,4 +255,24 @@ function recover(fd: number): {
   }
 
   return { events, valid: size, repair: undefined }
+}
+
+/** Every byte of a journal file. A file that is not there yet holds none. */
+function readBytes(path: string): Buffer {
+  try {
+    return readFileSync(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return Buffer.alloc(0)
+    throw error
+  }
+}
+
+/** Cut a damaged tail off, leaving the prefix that still holds. */
+function truncate(path: string, valid: number): void {
+  const fd = openSync(path, 'r+')
+  try {
+    ftruncateSync(fd, valid)
+  } finally {
+    closeSync(fd)
+  }
 }

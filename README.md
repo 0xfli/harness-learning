@@ -131,16 +131,17 @@ from there or `tsx src/main.ts` from inside `apps/dev-server`. It prints the
 path it used at boot, and never what was in it. Anything already set in the
 shell wins, so the one-off above still overrules the file without editing it.
 
-| Variable                  | Effect                                                      |
-| ------------------------- | ----------------------------------------------------------- |
-| `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one.  |
-| `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.        |
-| `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                             |
-| `HARNESS_REASONING`       | Reasoning effort, `none` through `max`. Provider-dependent. |
-| `HARNESS_THINKING`        | `enabled` or `disabled`. Unset lets the model decide.       |
-| `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.       |
-| `HARNESS_SESSION`         | Journal file. Defaults to `.harness/session.jsonl`.         |
-| `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist. |
+| Variable                  | Effect                                                          |
+| ------------------------- | --------------------------------------------------------------- |
+| `HARNESS_API_KEY`         | Set it to use a real provider; unset for the scripted one.      |
+| `HARNESS_MODEL`           | Model id. Required when a key is set; never guessed.            |
+| `HARNESS_BASE_URL`        | API root. Defaults to OpenAI's.                                 |
+| `HARNESS_REASONING`       | Reasoning effort, `none` through `max`. Provider-dependent.     |
+| `HARNESS_THINKING`        | `enabled` or `disabled`. Unset lets the model decide.           |
+| `HARNESS_SCRIPT_DELAY_MS` | Milliseconds between scripted deltas. Defaults to 40.           |
+| `HARNESS_SESSIONS`        | Directory of session journals. Defaults to `.harness/sessions`. |
+| `HARNESS_SESSION`         | Resume this session id at boot. Unset starts a new one.         |
+| `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist.     |
 
 ## Kill it and carry on
 
@@ -152,17 +153,62 @@ runs — and start it again:
 pnpm dev:server
 ```
 
-Refresh the page. The conversation is there, every chunk with its original
-timestamp, and the next thing you type continues it. Nothing was rehydrated,
-because there is nothing to rehydrate: the file is the log, and the
-conversation, the request and the panels are folded out of it exactly as they
-were a moment ago.
+It comes back on a **new session**, deliberately: what a run continues is a
+choice, and making it silently is how the first question of the morning ends up
+at the bottom of last night's conversation — and in front of the model, because
+the request is folded out of the log. Nothing was lost. Ask for the shelf:
+
+```bash
+curl -s http://localhost:8787/sessions | jq
+```
+
+```json
+{
+  "current": "20260823-091502-p04c",
+  "sessions": [
+    { "id": "20260823-091502-p04c", "events": 0 },
+    {
+      "id": "20260823-074139-k3f9",
+      "events": 214,
+      "startedAt": 1787475699000,
+      "updatedAt": 1787476001000,
+      "title": "what is a harness?"
+    }
+  ]
+}
+```
+
+Every route takes the id of the session it is about, so loading one is one
+question — read it, or carry on talking to it:
+
+```bash
+curl -N 'http://localhost:8787/events?session=20260823-074139-k3f9'
+curl -X POST 'http://localhost:8787/messages?session=20260823-074139-k3f9' \
+  -H 'content-type: application/json' -d '{"text":"where were we?"}'
+```
+
+The conversation is there, every chunk with its original timestamp, and the
+next thing you type continues it. Nothing was rehydrated, because there is
+nothing to rehydrate: the file is the log, and the conversation, the request
+and the panels are folded out of it exactly as they were a moment ago. Boot
+straight back into one with `HARNESS_SESSION=20260823-074139-k3f9 pnpm
+dev:server`, and see
+[`docs/adr/0009`](./docs/adr/0009-a-run-starts-a-session.md) for why that is
+opt-in.
+
+One session is one file, and the file's name is the session's id — so `ls`,
+`mv` and `rm` are the whole management interface, and a journal from before the
+shelf existed keeps its history by moving onto it:
+
+```bash
+mkdir -p .harness/sessions && mv .harness/session.jsonl .harness/sessions/legacy.jsonl
+```
 
 The file is worth looking at. One event per line, in order:
 
 ```bash
-wc -l .harness/session.jsonl
-jq -r 'select(.type == "user/message") | .data.text' .harness/session.jsonl
+wc -l .harness/sessions/*.jsonl
+jq -r 'select(.type == "user/message") | .data.text' .harness/sessions/20260823-074139-k3f9.jsonl
 ```
 
 What is _not_ in it is the point: no conversation, no message array, no
@@ -257,7 +303,7 @@ To keep a log across restarts, restore it from a journal instead:
 ```ts
 import { restoreSession } from '@harness/session/journal'
 
-const { log, close } = restoreSession({ path: '.harness/session.jsonl' })
+const { log, close } = restoreSession({ path: '.harness/sessions/legacy.jsonl' })
 
 log.length // however many events the last process left behind
 log.append('demo/hello', { message: 'and one more' }) // seq continues from there
@@ -266,9 +312,26 @@ close()
 
 That is the whole of it. The journal is attached as the log's first observer, so
 every event is on disk before any client hears its `seq`, and a damaged tail is
-truncated and reported at startup rather than carried forward. `node:fs` lives
-behind the `/journal` entry point alone — `@harness/session` itself stays
-browser-safe.
+truncated and reported when the session is opened rather than carried forward.
+The file itself is made by the first append, so a session nobody said anything
+in leaves nothing behind.
+
+For more than one session, use the shelf they sit on:
+
+```ts
+import { openSessionStore } from '@harness/session/store'
+
+const sessions = openSessionStore({ dir: '.harness/sessions' })
+
+sessions.list() // every stored session, most recently active first
+const session = sessions.create() // a new one, named after the moment it started
+sessions.open('20260823-074139-k3f9').log // an older one, loaded because you asked
+sessions.close()
+```
+
+`list` reads without opening, so a picker can show twenty sessions while the
+harness holds one. `node:fs` lives behind the `/journal` and `/store` entry
+points alone — `@harness/session` itself stays browser-safe.
 
 ## Recording an exchange in code
 

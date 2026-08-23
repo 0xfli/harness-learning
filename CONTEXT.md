@@ -29,9 +29,12 @@ committed event. Observers are post-commit and cannot veto, undo, or reorder an
 append. An observer that throws is contained and reported, not propagated.
 
 **Journal** — the session log written down: one file, one event per JSONL line,
-appended as each event commits and replayed at startup. Implemented by
-`openJournal` in `packages/core/session/src/journal.ts`, the only module in the
-package that knows a filesystem exists. Restoring the journal is the whole of
+appended as each event commits and replayed when the session is opened. The
+file is made by the first append, not by opening: a session nobody said
+anything in has no events, and a session with no events must leave nothing
+behind. Implemented by `openJournal` in
+`packages/core/session/src/journal.ts`, which with `session-store.ts` is all
+the package knows about filesystems. Restoring the journal is the whole of
 restoring a session — history is the log, and everything else is folded out of
 it again. See `docs/adr/0007-the-log-is-the-file.md`.
 
@@ -43,7 +46,40 @@ must find `seq` 7.
 **Repair** — what recovery does to a damaged journal: stop at the first line it
 cannot vouch for, truncate the file there, and report it. A journal is only
 ever a prefix. Bytes after the last newline are a record that was still being
-written, and a record that was still being written never happened.
+written, and a record that was still being written never happened. Only
+opening a session repairs it — listing one reads its file and leaves it alone,
+because browsing a shelf must not be a way to lose bytes.
+
+**Session** — one conversation with the harness: an id, and the log of
+everything that happened in it. Sessions are plural and independent, and
+nothing spans two of them. A run starts a session of its own and loads an
+older one only when asked for by name — see
+`docs/adr/0009-a-run-starts-a-session.md`.
+
+**Session id** — a session's name, and its journal's file name:
+`20260823-074139-k3f9`. UTC and sortable as a string, so a directory listing is
+already in the order a human wants to read it. Strictly
+`[A-Za-z0-9][A-Za-z0-9_-]{0,63}`, because an id arrives from a URL and leaves
+as a filename, and the characters that would make one a traversal are simply
+not in the set.
+
+**Session store** — where sessions are kept, and the only way the server knows
+of finding one: `list`, `has`, `summarise`, `open`, `create`. `openSessionStore`
+in `packages/core/session/src/session-store.ts` is a directory of journals;
+`createMemorySessionStore` in `apps/dev-server` is the same shelf with nothing
+behind it. Opening is the only expensive operation, and the only one nobody
+performs by accident: listing reads, it does not open.
+
+**Current session** — the session a request that names none is talking to: the
+one this run started, or the one `HARNESS_SESSION` asked for. Not a mode and
+not shared state — every route takes `?session=<id>`, and "current" is only
+what the harness assumes when nobody says.
+
+**Session summary** — a session as it appears in a list: its id, how many
+events it holds, when it started and last moved, and the first thing the human
+said, which is its title. Folded out of the events by `summariseEvents` and
+never stored beside them: a title written down next to a log is a second source
+of truth that starts lying the moment the log grows.
 
 **Feed** — the SSE stream that carries the log to a client: full history first,
 then live events, in `seq` order. Implemented in `apps/dev-server/src/sse.ts`.
@@ -175,8 +211,8 @@ reason the log is.
 ## Layout
 
 - `packages/core/session` — the log. Pure; knows nothing about HTTP. Its
-  `/journal` entry point is the one place `node:fs` appears, so the browser
-  imports the vocabulary without the filesystem.
+  `/journal` and `/store` entry points are the only places `node:fs` appears,
+  so the browser imports the vocabulary without the filesystem.
 - `packages/core/llm` — provider vocabulary and adapters. Knows nothing about
   the log.
 - `packages/core/exchange` — the seam between the two: folds the log into the

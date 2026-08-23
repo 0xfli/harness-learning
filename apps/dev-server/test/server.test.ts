@@ -194,10 +194,10 @@ describe('other routes', () => {
     expect((await response.json()) as unknown[]).toHaveLength(3)
   })
 
-  it('reports health', async () => {
+  it('reports health, and which session a bare request would reach', async () => {
     const response = await fetch(`${origin}/health`)
 
-    expect(await response.json()).toEqual({ ok: true, events: 0 })
+    expect(await response.json()).toEqual({ ok: true, events: 0, current: harness.current.id })
   })
 
   it('serves usage at the root', async () => {

@@ -1,41 +1,57 @@
 /**
- * Entry point: read the environment, restore the session from disk, pick a
- * model, then serve it.
+ * Entry point: read the environment, open the shelf of sessions, pick a model,
+ * then serve it.
+ *
+ * Note what this no longer does: it does not restore last night's
+ * conversation. A run starts a session of its own, and the ones before it stay
+ * on the shelf until something asks for one by name — see
+ * `docs/adr/0009-a-run-starts-a-session.md`.
  *
  * @module
  */
 
-import { restoreSession } from '@harness/session/journal'
+import { openSessionStore } from '@harness/session/store'
 import { adapterFromEnv } from './adapter.ts'
 import { describePath, loadEnvFile } from './env-file.ts'
-import { createHarnessServer, seedDemoEvents } from './server.ts'
+import { createHarnessServer } from './server.ts'
 
 // First, because everything below reads `process.env` and a file that lands
 // after the first read is a file that only works sometimes.
 const envFile = loadEnvFile({ path: process.env.HARNESS_ENV_FILE })
 
 const port = Number(process.env.PORT ?? 8787)
-const journalPath = process.env.HARNESS_SESSION ?? '.harness/session.jsonl'
+const dir = process.env.HARNESS_SESSIONS ?? '.harness/sessions'
 const adapter = adapterFromEnv()
 
-// Before the server exists, because everything the harness knows comes back
-// from here — including whether this is a fresh session at all.
-const session = restoreSession({ path: journalPath })
-const { log } = session
-const restored = log.length
+const sessions = openSessionStore({ dir })
+const stored = sessions.list().length
 
-const { server, close } = createHarnessServer({ log, adapter })
+// Resuming is opt-in, and it is opt-in by name: a typo that quietly started an
+// empty session would look exactly like a conversation that had vanished.
+const resume = process.env.HARNESS_SESSION
+if (resume !== undefined && resume.length > 0 && !sessions.has(resume)) {
+  const known = sessions.list().map((session) => session.id)
+  console.error(`no session "${resume}" in ${dir}`)
+  console.error(known.length === 0 ? '  (none stored yet)' : `  known: ${known.join(', ')}`)
+  process.exit(1)
+}
 
-// Only on a genuinely empty log. Seeding a restored session would append three
-// invented facts to a real conversation on every restart.
-if (restored === 0) seedDemoEvents(log)
+const { server, close, current } = createHarnessServer({
+  sessions,
+  adapter,
+  ...(resume === undefined || resume.length === 0 ? {} : { currentId: resume }),
+})
 
 server.listen(port, () => {
   console.log(`session log listening on http://localhost:${port}`)
   // The path only. What is inside it is the reason the file exists.
   if (envFile !== undefined) console.log(`  env: ${describePath(envFile)}`)
   console.log(`  model: ${adapter.name}`)
-  console.log(`  journal: ${journalPath} (${restored} event${restored === 1 ? '' : 's'} restored)`)
+  console.log(`  sessions: ${dir} (${stored} stored)`)
+  const restored = current.log.length
+  const state = restored === 0 ? 'new' : `${restored} event${restored === 1 ? '' : 's'} restored`
+  console.log(`  current: ${current.id} (${state})`)
+  console.log(`  curl -s http://localhost:${port}/sessions`)
   console.log(`  curl -N http://localhost:${port}/events`)
   console.log(
     `  curl -X POST http://localhost:${port}/messages -H 'content-type: application/json' -d '{"text":"hello"}'`,
@@ -45,7 +61,6 @@ server.listen(port, () => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     void close().then(() => {
-      session.close()
       process.exit(0)
     })
   })

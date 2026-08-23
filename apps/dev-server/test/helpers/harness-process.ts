@@ -11,14 +11,18 @@
  * @module
  */
 
+import { basename, dirname } from 'node:path'
 import { createScriptedAdapter } from '@harness/llm'
-import { restoreSession } from '@harness/session/journal'
+import { openSessionStore } from '@harness/session/store'
 import { createHarnessServer } from '../../src/server.ts'
 
 const path = process.argv[2]
 if (path === undefined) throw new Error('usage: harness-process <journal path>')
 
-const { log } = restoreSession({ path })
+// A journal's file name is its session id, so a path is all this needs to
+// serve the same session again on the other side of a kill.
+const sessions = openSessionStore({ dir: dirname(path) })
+const currentId = basename(path, '.jsonl')
 
 const adapter = createScriptedAdapter({
   // The reply reports the request it was given, so a test can tell whether the
@@ -27,7 +31,7 @@ const adapter = createScriptedAdapter({
   reply: (messages) => `shown ${messages.length}`,
 })
 
-const { server } = createHarnessServer({ log, adapter, heartbeatMs: 0 })
+const { server } = createHarnessServer({ sessions, currentId, adapter, heartbeatMs: 0 })
 
 server.listen(0, '127.0.0.1', () => {
   const address = server.address()
