@@ -601,6 +601,11 @@ body {
   --turn-colour: var(--type-assistant);
 }
 
+.turn[data-role='tool'] {
+  --turn-colour: var(--type-tool);
+  background: var(--surface-secondary);
+}
+
 /* Said, but not yet in the log. Coloured like the feed's own "not settled
  * yet", because that is exactly what it is. */
 .turn[data-state='pending'] {
@@ -627,6 +632,16 @@ body {
 
 .turn[data-state='pending'] .turn-role::after {
   content: ' · sending';
+}
+
+/* A tool card is not "sending" — it is waiting, and it keeps its own colour
+ * while it does. Both rules read `data-state`; neither is told anything. */
+.turn-tool[data-state='pending'] {
+  --turn-colour: var(--type-tool);
+}
+
+.turn-tool[data-state='pending'] .turn-role::after {
+  content: '';
 }
 
 .turn-text {
@@ -665,6 +680,53 @@ body {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--type-error);
+}
+
+/*
+ * A tool card shows both halves of the pair — what was asked for, and what
+ * came back — because "reconstruct the whole call from the log alone" is the
+ * promise, and a UI that only showed the answer would quietly break it.
+ */
+.tool-arguments,
+.tool-result {
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  /* A listing is lines; wrapping them into a paragraph would lose the shape
+   * the model was given. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+.tool-result {
+  margin-top: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+  color: var(--foreground);
+}
+
+/* A failing tool is an ordinary result, so it is the same element in a
+ * different colour — not a different element. See ADR-0011. */
+.tool-result[data-error='true'] {
+  background: color-mix(in srgb, var(--type-error) var(--tint), transparent);
+  color: var(--type-error);
+}
+
+.tool-pending {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--type-tool);
+}
+
+.tool-pending::after {
+  content: '▍';
+  margin-left: 0.15em;
+  animation: turn-caret 1.1s steps(2, jump-none) infinite;
 }
 
 .composer {
@@ -810,6 +872,12 @@ body {
   color: var(--type-assistant);
 }
 
+/* The same token the left column paints `tool/*` events with, so a result can
+ * be followed from the event that recorded it to the message it became. */
+.model-message[data-role='tool'] {
+  color: var(--type-tool);
+}
+
 /* Nothing writes a system message yet; the colour is here so the first one
  * that does is legible rather than inheriting the frame's. */
 .model-message[data-role='system'] {
@@ -817,13 +885,15 @@ body {
 }
 
 /*
- * Two things on this page move on their own — the caret under a reply and the
- * ring around a live feed. Both are ambient rather than informative: the
- * caret's state is also in `data-state`, the ring's is also in the word next
- * to it. So both stop, and nothing is lost with them.
+ * Three things on this page move on their own — the caret under a reply, the
+ * caret beside a running tool, and the ring around a live feed. All are
+ * ambient rather than informative: the carets' state is also in `data-state`,
+ * the ring's is also in the word next to it. So all stop, and nothing is lost
+ * with them.
  */
 @media (prefers-reduced-motion: reduce) {
   .turn[data-state='streaming'] .turn-text::after,
+  .tool-pending::after,
   .connection-status[data-status='open'] .connection-dot::after {
     animation: none;
   }

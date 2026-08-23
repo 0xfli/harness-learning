@@ -44,6 +44,9 @@ importers:
       '@harness/session':
         specifier: workspace:*
         version: link:../../packages/core/session
+      '@harness/tools':
+        specifier: workspace:*
+        version: link:../../packages/core/tools
     devDependencies:
       '@harness/session-feed':
         specifier: workspace:*
@@ -130,6 +133,9 @@ importers:
       '@harness/session':
         specifier: workspace:*
         version: link:../session
+      '@harness/tools':
+        specifier: workspace:*
+        version: link:../tools
 
   packages/core/llm:
     dependencies:
@@ -138,6 +144,15 @@ importers:
         version: 7.5.0(ws@8.21.3)
 
   packages/core/session: {}
+
+  packages/core/tools:
+    dependencies:
+      '@harness/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@harness/session':
+        specifier: workspace:*
+        version: link:../session
 
 packages:
 

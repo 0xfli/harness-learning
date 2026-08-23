@@ -79,3 +79,39 @@ describe('a block', () => {
     expect(Object.isFrozen(blocks[0])).toBe(true)
   })
 })
+
+describe('a request that used tools', () => {
+  const withTools: readonly ModelMessage[] = [
+    { role: 'user', content: 'what is in src?' },
+    {
+      role: 'assistant',
+      content: '',
+      toolCalls: [{ id: 'call_1', name: 'list_directory', arguments: '{"path":"src"}' }],
+    },
+    { role: 'tool', content: 'index.ts', toolCallId: 'call_1' },
+    { role: 'assistant', content: 'One file: index.ts.' },
+  ]
+
+  it('shows the calls and the result, because they are in the request', () => {
+    const json = modelViewJson(withTools)
+
+    expect(json).toContain('"toolCalls"')
+    expect(json).toContain('"toolCallId": "call_1"')
+    expect(json).toContain('"list_directory"')
+  })
+
+  it('is still the request byte for byte', () => {
+    // The claim the column exists for, restated for the shapes this step
+    // added: nothing about a tool message is summarised on the way to screen.
+    expect(modelViewJson(withTools)).toBe(JSON.stringify(withTools, null, 2))
+  })
+
+  it('gives a tool message its own role to be coloured by', () => {
+    expect(modelViewBlocks(withTools).map((block) => block.role)).toEqual([
+      'user',
+      'assistant',
+      'tool',
+      'assistant',
+    ])
+  })
+})

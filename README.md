@@ -12,12 +12,13 @@ rendered, it is recorded — a conversation column that reads those deltas back
 as speech, typewriter and all, without holding a single character of it, and a
 third column showing the request itself: the same events folded into the
 messages a provider is handed, byte for byte. The log is written to disk as it
-grows and replayed on startup, so the session outlives the process. There is no
-agent loop and no tools yet.
+grows and replayed on startup, so the session outlives the process. The model
+can read files and list directories; nothing can write yet.
 
 ```
 packages/core/session          The log, and the journal that outlives the process.
 packages/core/llm              Provider vocabulary and adapters. Knows nothing about the log.
+packages/core/tools            What the model can do besides talk. Read-only, for now.
 packages/core/exchange         Runs a model and writes down every delta of what it said.
 packages/client/session-feed   The replica. Knows about the feed, not about React.
 apps/dev-server                HTTP front door: an SSE feed you can curl.
@@ -143,6 +144,53 @@ shell wins, so the one-off above still overrules the file without editing it.
 | `HARNESS_SESSIONS`        | Directory of session journals. Defaults to `.harness/sessions`. |
 | `HARNESS_SESSION`         | Resume this session id at boot. Unset starts a new one.         |
 | `HARNESS_ENV_FILE`        | Load this file instead of searching for `.env`. Must exist.     |
+
+## Let the model read the filesystem
+
+Ask what is in a directory, and the reply is a fact rather than a guess:
+
+```bash
+curl -X POST http://localhost:8787/messages \
+  -H 'content-type: application/json' \
+  -d '{"text":"what is in the packages/core directory?"}'
+```
+
+Three columns move at once. The middle grows a **tool card** the moment the
+call is logged, showing the name and the arguments and the word `running…`;
+the left grows a `tool/call`; the right grows an assistant message carrying
+`toolCalls`. Then the tool finishes, the card fills in, and the model gets
+another turn with the answer in front of it.
+
+The pending card is worth a second look, because nothing implements it. A card
+is pending exactly while the log holds a `tool/call` with no `tool/result`
+beside it. No timer starts it and no callback ends it — the fold simply runs
+again when the result lands. Set `HARNESS_SCRIPT_DELAY_MS=200` and you can
+watch the gap.
+
+Two tools, both read-only: `read_file` and `list_directory`, rooted at the
+directory the server was started from. Nothing can write, and nothing can run a
+command; those are later steps. Paths are resolved before they are compared, so
+`../../etc/passwd` is refused rather than sanitised.
+
+Without an API key the scripted adapter still demonstrates all of it — it calls
+any tool whose name you type, with any `{...}` you type as the arguments:
+
+```bash
+curl -X POST http://localhost:8787/messages \
+  -H 'content-type: application/json' \
+  -d '{"text":"read_file {\"path\":\"README.md\"}"}'
+```
+
+Now ask for a file that does not exist. The tool fails, the card turns red, and
+the conversation **carries on** — the model is told what went wrong and
+answers. That is the decision the step turned on, and it is not politeness: a
+tool that throws leaves a `tool/call` that nothing answers, and every later
+message in that session is refused by the provider with a 400 about a request
+nobody can see anything wrong with. An append cannot be taken back, so the
+session is poisoned for good. See
+[`docs/adr/0011`](./docs/adr/0011-a-failing-tool-is-a-result.md), and the
+deliberate mistake kept runnable in
+`packages/core/exchange/test/unbalanced-history.test.ts`.
 
 ## Kill it and carry on
 

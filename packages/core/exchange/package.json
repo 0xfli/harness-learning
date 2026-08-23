@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@harness/llm": "workspace:*",
-    "@harness/session": "workspace:*"
+    "@harness/session": "workspace:*",
+    "@harness/tools": "workspace:*"
   }
 }

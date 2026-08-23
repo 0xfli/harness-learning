@@ -289,3 +289,142 @@ describe('the column itself', () => {
     expect(source).not.toMatch(/\buseEffect\b/)
   })
 })
+
+describe('a tool card', () => {
+  /** Each rendered card as `state · name · arguments · result`. */
+  function cards(view: MountedInspector): string[] {
+    return [...view.container.querySelectorAll('.turn-tool')].map((card) => {
+      const text = (selector: string) => card.querySelector(selector)?.textContent ?? ''
+      return [
+        card.getAttribute('data-state'),
+        text('.turn-role'),
+        text('.tool-arguments'),
+        text('.tool-result'),
+      ].join(' · ')
+    })
+  }
+
+  it('shows what was asked for before anything has come back', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'user/message', { id: 'a', text: 'what is in src?' }),
+      wireEvent(1, 'tool/call', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        arguments: '{"path":"src"}',
+      }),
+    )
+
+    expect(cards(view)).toEqual(['pending · list_directory · {"path":"src"} · '])
+    expect(view.container.querySelector('.tool-pending')?.textContent).toBe('running…')
+  })
+
+  it('fills the same card in when the result lands', () => {
+    // No second card, and no element replaced: the key is the call id, so
+    // React updates the node that was already there. The card was never told
+    // it had finished — the log grew and the fold ran again.
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'user/message', { id: 'a', text: 'what is in src?' }),
+      wireEvent(1, 'tool/call', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        arguments: '{"path":"src"}',
+      }),
+    )
+    const pending = view.container.querySelector('.turn-tool')
+
+    view.send(
+      wireEvent(2, 'tool/result', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        content: 'index.ts\nmain.ts',
+        isError: false,
+      }),
+    )
+
+    expect(cards(view)).toEqual(['complete · list_directory · {"path":"src"} · index.ts\nmain.ts'])
+    expect(view.container.querySelector('.turn-tool')).toBe(pending)
+    expect(view.container.querySelector('.tool-pending')).toBeNull()
+  })
+
+  it('marks a failure on the result, and still shows it', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'user/message', { id: 'a', text: 'read nope.md' }),
+      wireEvent(1, 'tool/call', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'read_file',
+        arguments: '{"path":"nope.md"}',
+      }),
+      wireEvent(2, 'tool/result', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'read_file',
+        content: '"nope.md" does not exist',
+        isError: true,
+      }),
+    )
+
+    expect(cards(view)).toEqual([
+      'failed · read_file · {"path":"nope.md"} · "nope.md" does not exist',
+    ])
+    expect(view.container.querySelector('.tool-result')?.getAttribute('data-error')).toBe('true')
+  })
+
+  it('sits between the two things the model said', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'user/message', { id: 'a', text: 'what is in src?' }),
+      wireEvent(1, 'assistant/message', {
+        id: 'a',
+        step: 0,
+        text: 'Let me look.',
+        reason: 'tool_calls',
+        chunks: 1,
+      }),
+      wireEvent(2, 'tool/call', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        arguments: '{}',
+      }),
+      wireEvent(3, 'tool/result', {
+        id: 'a',
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        content: 'index.ts',
+        isError: false,
+      }),
+      wireEvent(4, 'assistant/message', {
+        id: 'a',
+        step: 1,
+        text: 'One file: index.ts.',
+        reason: 'stop',
+        chunks: 1,
+      }),
+    )
+
+    expect(turns(view)).toEqual([
+      'user · complete · what is in src?',
+      'assistant · complete · Let me look.',
+      'tool · complete · ',
+      'assistant · complete · One file: index.ts.',
+    ])
+  })
+})

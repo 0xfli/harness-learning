@@ -19,6 +19,9 @@ import type { JsonObject, OpenSession, SessionLog, SessionStore } from '@harness
 import { createScriptedAdapter } from '@harness/llm'
 import type { ModelAdapter } from '@harness/llm'
 import { recordExchange } from '@harness/exchange'
+import { createToolRegistry } from '@harness/tools'
+import type { ToolRegistry } from '@harness/tools'
+import { createFileTools } from '@harness/tools/fs'
 import { createMemorySessionStore } from './memory-sessions.ts'
 import { streamSessionLog } from './sse.ts'
 
@@ -37,6 +40,17 @@ export interface HarnessServerOptions {
   readonly currentId?: string
   /** The model behind `POST /messages`. Defaults to a scripted one. */
   readonly adapter?: ModelAdapter
+  /**
+   * What the model is allowed to do besides talk.
+   *
+   * Defaults to the read-only file tools, rooted at the directory the server
+   * was started from — so `pnpm dev` in a checkout gives the model that
+   * checkout and nothing above it. Pass an empty registry for a server that
+   * only converses.
+   */
+  readonly tools?: ToolRegistry
+  /** The directory the default file tools are rooted at. Defaults to `cwd`. */
+  readonly root?: string
   /** Heartbeat interval for SSE connections, in milliseconds. */
   readonly heartbeatMs?: number
 }
@@ -49,6 +63,8 @@ export interface HarnessServer {
   /** Shorthand for `current.log` — the log a bare `/events` streams. */
   readonly log: SessionLog
   readonly adapter: ModelAdapter
+  /** The tools this server offered the model. */
+  readonly tools: ToolRegistry
   readonly server: Server
   /** Ends every open stream, closes every open session, then stops listening. */
   close(): Promise<void>
@@ -79,7 +95,10 @@ conversation you did not ask for.
                       — every event of it carries that id, and a reused one is
                       refused with 409.
                       Records user/message, one assistant/chunk per delta,
-                      assistant/usage, then a single assistant/message.
+                      assistant/usage, then a single assistant/message — and
+                      repeats all of that per step for as long as the model
+                      keeps calling tools, with a tool/call and a tool/result
+                      around each call.
   GET  /health        Liveness probe.
 
 Try it:
@@ -88,6 +107,9 @@ Try it:
   curl -X POST http://localhost:8787/messages \\
     -H 'content-type: application/json' \\
     -d '{"text":"hello"}'
+  curl -X POST http://localhost:8787/messages \\
+    -H 'content-type: application/json' \\
+    -d '{"text":"what is in the src directory?"}'
   curl -s http://localhost:8787/sessions
   curl -N 'http://localhost:8787/events?session=20260823-074139-k3f9'
 `
@@ -101,6 +123,8 @@ Try it:
 export function createHarnessServer(options: HarnessServerOptions = {}): HarnessServer {
   const sessions = options.sessions ?? createMemorySessionStore()
   const adapter = options.adapter ?? createScriptedAdapter()
+  const tools =
+    options.tools ?? createToolRegistry(createFileTools({ root: options.root ?? process.cwd() }))
   const openStreams = new Set<() => void>()
 
   /**
@@ -274,6 +298,7 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
           const result = await recordExchange({
             log,
             adapter,
+            tools,
             text,
             signal: controller.signal,
             // Letting the caller name the exchange is what lets a browser show
@@ -286,6 +311,9 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
             text: result.text,
             reason: result.reason,
             chunks: result.chunks,
+            steps: result.steps,
+            toolCalls: result.toolCalls,
+            stoppedAtLimit: result.stoppedAtLimit,
             usage: result.usage ?? null,
             seq: {
               userMessage: result.userMessage.seq,
@@ -316,6 +344,7 @@ export function createHarnessServer(options: HarnessServerOptions = {}): Harness
       return current().log
     },
     adapter,
+    tools,
     server,
     close: async () => {
       for (const closeStream of openStreams) closeStream()

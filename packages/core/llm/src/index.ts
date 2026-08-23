@@ -11,14 +11,19 @@
 export { createOpenAiAdapter } from './openai.ts'
 export type { OpenAiAdapterOptions } from './openai.ts'
 export { createScriptedAdapter, splitIntoDeltas } from './scripted.ts'
-export type { ScriptedAdapterOptions } from './scripted.ts'
+export type { ScriptedAdapterOptions, ScriptedReply, ScriptedStep } from './scripted.ts'
 export { ModelStreamError } from './types.ts'
 export type {
+  AssistantMessage,
   MessageRole,
   ModelAdapter,
   ModelMessage,
   ReasoningEffort,
+  SaidMessage,
   StreamChunk,
   StreamChunkType,
   StreamOptions,
+  ToolCall,
+  ToolMessage,
+  ToolSchema,
 } from './types.ts'

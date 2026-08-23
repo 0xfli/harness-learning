@@ -143,10 +143,20 @@ describe('the rule table', () => {
     // kind of fact is therefore one entry in `MESSAGE_RULES` and nothing else.
     for (const type of Object.values(EXCHANGE_EVENT_TYPES)) {
       const log = new SessionLog()
-      // Deliberately generous: every payload carries `text`, so a type that
-      // contributes nothing does so because it has no rule rather than because
-      // there was nothing to read.
-      log.append(type, { id: 'm1', index: 0, text: 'anything', reason: 'stop', chunks: 1 })
+      // Deliberately generous: every payload carries every field a rule might
+      // read, so a type that contributes nothing does so because it has no
+      // rule rather than because there was nothing to read.
+      log.append(type, {
+        id: 'm1',
+        step: 0,
+        index: 0,
+        text: 'anything',
+        content: 'anything',
+        callId: 'call-1',
+        name: 'read_file',
+        reason: 'stop',
+        chunks: 1,
+      })
 
       expect(deriveMessages(log).length > 0, `${type} affects the request`).toBe(
         type in MESSAGE_RULES,
@@ -154,8 +164,15 @@ describe('the rule table', () => {
     }
   })
 
-  it('names the two types a conversation is made of', () => {
-    expect(Object.keys(MESSAGE_RULES).toSorted()).toEqual(['assistant/message', 'user/message'])
+  it('names the three types a conversation is made of', () => {
+    // Three, since tools: what the human said, what the model said, and what
+    // came back from doing it. `tool/call` is deliberately not among them —
+    // the calls ride on the `assistant/message` that asked for them.
+    expect(Object.keys(MESSAGE_RULES).toSorted()).toEqual([
+      'assistant/message',
+      'tool/result',
+      'user/message',
+    ])
   })
 })
 

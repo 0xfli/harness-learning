@@ -14,7 +14,7 @@
 import { useActionState, useMemo, useOptimistic } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { deriveConversation, optimisticTurn, withOptimistic } from '../conversation.ts'
-import type { Turn } from '../conversation.ts'
+import type { MessageTurn, ToolTurn, Turn } from '../conversation.ts'
 import { newMessageId } from '../exchange-client.ts'
 import type { OutgoingMessage } from '../exchange-client.ts'
 import { useStartExchange } from '../exchange-context.tsx'
@@ -108,11 +108,52 @@ interface TurnBubbleProps {
 }
 
 function TurnBubble({ turn }: TurnBubbleProps): ReactNode {
+  return turn.role === 'tool' ? <ToolCard turn={turn} /> : <MessageBubble turn={turn} />
+}
+
+function MessageBubble({ turn }: { readonly turn: MessageTurn }): ReactNode {
   return (
     <li className="turn" data-role={turn.role} data-state={turn.state} data-message-id={turn.id}>
       <span className="turn-role">{turn.role}</span>
       <p className="turn-text">{turn.text}</p>
       {turn.error === undefined ? null : <p className="turn-error">{turn.error}</p>}
+    </li>
+  )
+}
+
+/**
+ * What the harness did between two things the model said.
+ *
+ * The pending state is rendered from the same field as every other state and
+ * needs no timer, no spinner state and no cleanup: a card is pending exactly
+ * while the log has a `tool/call` and no `tool/result` for it. When the result
+ * is appended the fold runs again and the card is finished. Nothing here is
+ * told; it is all read.
+ *
+ * @param props - the tool turn to draw.
+ * @returns the card element.
+ */
+function ToolCard({ turn }: { readonly turn: ToolTurn }): ReactNode {
+  const pending = turn.state === 'pending'
+  return (
+    <li
+      className="turn turn-tool"
+      data-role="tool"
+      data-state={turn.state}
+      data-message-id={turn.id}
+      data-call-id={turn.callId}
+    >
+      <span className="turn-role">{turn.name}</span>
+      <pre className="tool-arguments">{turn.arguments}</pre>
+      {pending ? (
+        <p className="tool-pending" aria-live="polite">
+          running…
+        </p>
+      ) : (
+        <pre className="tool-result" data-error={turn.isError}>
+          {turn.result}
+        </pre>
+      )}
     </li>
   )
 }

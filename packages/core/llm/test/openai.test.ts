@@ -310,3 +310,197 @@ describe('createOpenAiAdapter', () => {
     })
   })
 })
+
+/** One frame carrying a fragment of a tool call, as a provider streams them. */
+function toolFragment(
+  index: number,
+  fragment: { id?: string; name?: string; arguments?: string },
+): string {
+  return JSON.stringify({
+    choices: [
+      {
+        index: 0,
+        delta: {
+          tool_calls: [
+            {
+              index,
+              ...(fragment.id === undefined ? {} : { id: fragment.id }),
+              type: 'function',
+              function: {
+                ...(fragment.name === undefined ? {} : { name: fragment.name }),
+                ...(fragment.arguments === undefined ? {} : { arguments: fragment.arguments }),
+              },
+            },
+          ],
+        },
+      },
+    ],
+  })
+}
+
+/** One frame carrying a finish reason. */
+function finish(reason: string): string {
+  return JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: reason }] })
+}
+
+describe('tool calls on the wire', () => {
+  it('glues the arguments back together across frames', async () => {
+    // The reason a tool call is not streamed as deltas: this is what actually
+    // arrives, and no prefix of it is a fact anybody could act on.
+    const { fetch } = stubFetch([
+      toolFragment(0, { id: 'call_1', name: 'read_file', arguments: '' }),
+      toolFragment(0, { arguments: '{"pa' }),
+      toolFragment(0, { arguments: 'th":"note' }),
+      toolFragment(0, { arguments: 's.md"}' }),
+      finish('tool_calls'),
+      '[DONE]',
+    ])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    const chunks = await collect(adapter.stream(HELLO))
+
+    expect(chunks).toEqual([
+      {
+        type: 'tool-call',
+        call: { id: 'call_1', name: 'read_file', arguments: '{"path":"notes.md"}' },
+      },
+      { type: 'finish', reason: 'tool_calls' },
+    ])
+  })
+
+  it('keeps two interleaved calls apart by their index', async () => {
+    const { fetch } = stubFetch([
+      toolFragment(0, { id: 'call_1', name: 'read_file' }),
+      toolFragment(1, { id: 'call_2', name: 'list_directory' }),
+      toolFragment(1, { arguments: '{"path":"src"}' }),
+      toolFragment(0, { arguments: '{"path":"a.md"}' }),
+      finish('tool_calls'),
+      '[DONE]',
+    ])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    const chunks = await collect(adapter.stream(HELLO))
+
+    expect(chunks.filter((chunk) => chunk.type === 'tool-call')).toEqual([
+      {
+        type: 'tool-call',
+        call: { id: 'call_1', name: 'read_file', arguments: '{"path":"a.md"}' },
+      },
+      {
+        type: 'tool-call',
+        call: { id: 'call_2', name: 'list_directory', arguments: '{"path":"src"}' },
+      },
+    ])
+  })
+
+  it('emits the calls before the finish that reports them', async () => {
+    const { fetch } = stubFetch([
+      toolFragment(0, { id: 'c1', name: 'look', arguments: '{}' }),
+      finish('tool_calls'),
+      '[DONE]',
+    ])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    const chunks = await collect(adapter.stream(HELLO))
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual(['tool-call', 'finish'])
+  })
+
+  it('flushes a call the provider never announced a finish for', async () => {
+    const { fetch } = stubFetch([
+      toolFragment(0, { id: 'c1', name: 'look', arguments: '{}' }),
+      '[DONE]',
+    ])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    expect(await collect(adapter.stream(HELLO))).toEqual([
+      { type: 'tool-call', call: { id: 'c1', name: 'look', arguments: '{}' } },
+    ])
+  })
+
+  it('drops a fragment that never became a call, so nothing unanswerable is logged', async () => {
+    const { fetch } = stubFetch([toolFragment(0, { arguments: '{"half":' }), '[DONE]'])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    expect(await collect(adapter.stream(HELLO))).toEqual([])
+  })
+
+  it('sends the schemas when there are any', async () => {
+    const { fetch, calls } = stubFetch(['[DONE]'])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    await collect(
+      adapter.stream(HELLO, {
+        tools: [{ name: 'read_file', description: 'Read a file.', parameters: { type: 'object' } }],
+      }),
+    )
+
+    expect(bodyOf(calls[0])['tools']).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'read_file',
+          description: 'Read a file.',
+          parameters: { type: 'object' },
+        },
+      },
+    ])
+  })
+
+  it('sends no tools field at all when there are none', async () => {
+    // Not the same request as one carrying an empty array — and, for DeepSeek,
+    // the difference that decides whether reasoning must be replayed.
+    const { fetch, calls } = stubFetch(['[DONE]'])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    await collect(adapter.stream(HELLO, { tools: [] }))
+
+    expect(bodyOf(calls[0])).not.toHaveProperty('tools')
+  })
+})
+
+describe('messages on the wire', () => {
+  it('spells a tool result the way a provider expects to read it', async () => {
+    const { fetch, calls } = stubFetch(['[DONE]'])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    await collect(
+      adapter.stream([
+        { role: 'user', content: 'what is in src?' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'call_1', name: 'list_directory', arguments: '{"path":"src"}' }],
+          reasoning: 'they want a listing',
+        },
+        { role: 'tool', content: 'index.ts', toolCallId: 'call_1' },
+      ]),
+    )
+
+    expect(bodyOf(calls[0])['messages']).toEqual([
+      { role: 'user', content: 'what is in src?' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'list_directory', arguments: '{"path":"src"}' },
+          },
+        ],
+        reasoning_content: 'they want a listing',
+      },
+      { role: 'tool', content: 'index.ts', tool_call_id: 'call_1' },
+    ])
+  })
+
+  it('leaves out what an assistant message does not carry', async () => {
+    const { fetch, calls } = stubFetch(['[DONE]'])
+    const adapter = createOpenAiAdapter({ model: 'test-model', apiKey: 'k', fetch })
+
+    await collect(adapter.stream([{ role: 'assistant', content: 'just talking' }]))
+
+    expect(bodyOf(calls[0])['messages']).toEqual([{ role: 'assistant', content: 'just talking' }])
+  })
+})
