@@ -14,6 +14,8 @@ import type { JsonObject, SessionEvent, SessionObserver, Unobserve } from './typ
 
 export { deepFreeze, snapshotJsonValue } from './json.ts'
 export { asSessionEvent, decodeEvent, encodeEvent } from './jsonl.ts'
+export { asSessionId, isSessionId, newSessionId, summariseEvents } from './sessions.ts'
+export type { NewSessionIdOptions, OpenSession, SessionStore, SessionSummary } from './sessions.ts'
 export type { JsonObject, JsonValue, SessionEvent, SessionObserver, Unobserve } from './types.ts'
 
 /** Knobs a caller may want to control, mostly for tests. */

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -43,12 +44,17 @@ function recordAndAbandon(types: readonly string[]): SessionEvent[] {
 }
 
 describe('openJournal', () => {
-  it('creates missing directories and starts empty', () => {
+  it('writes nothing until there is something to write', () => {
     const journal = openJournal({ path })
 
     expect(journal.events).toEqual([])
     expect(journal.repair).toBeUndefined()
-    expect(readFileSync(path, 'utf8')).toBe('')
+    // A session nobody said anything in has no events, and a session with no
+    // events never happened: it must leave no file for a store to list.
+    expect(existsSync(path)).toBe(false)
+
+    journal.append({ seq: 0, type: 'demo/hello', time: 1, data: {} })
+    expect(readFileSync(path, 'utf8')).toBe('{"seq":0,"type":"demo/hello","time":1,"data":{}}\n')
     journal.close()
   })
 
