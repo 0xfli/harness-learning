@@ -11,8 +11,8 @@
  *
  * `fetch` is a constructor argument rather than a global reference so the wire
  * format can be tested without a network or a key: the tests hand it a `fetch`
- * that returns a canned stream. Reaching a provider through a proxy is the
- * runtime's job, not this module's — see `NODE_USE_ENV_PROXY` in the README.
+ * that returns a canned stream. How the runtime actually gets a packet out —
+ * proxies, DNS, TLS — is the runtime's business and stays out of here.
  *
  * @module
  */
