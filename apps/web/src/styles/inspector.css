@@ -471,7 +471,8 @@ body {
 
 /*
  * One event, one line. A stream that wraps stops being scannable at the exact
- * moment it gets busy, so a long payload is clipped rather than reflowed.
+ * moment it gets busy, so a long summary is clipped rather than reflowed —
+ * and the payload it was cut out of is one click below rather than lost.
  */
 .event-row {
   position: relative;
@@ -484,7 +485,23 @@ body {
   font-family: var(--font-mono);
   font-size: 0.74rem;
   white-space: nowrap;
+  cursor: pointer;
+  /* The disclosure triangle, removed in both the spellings browsers still
+   * disagree about. The row is already a four-cell grid, and a marker would
+   * be a fifth column saying nothing the open row does not. */
+  list-style: none;
   transition: background-color var(--fast) var(--ease);
+}
+
+.event-row::-webkit-details-marker {
+  display: none;
+}
+
+/* Keyboard focus has to be visible on a row that is now a control. Inset,
+ * because an outline outside a full-bleed row is clipped by the column. */
+.event-row:focus-visible {
+  outline: 2px solid var(--event-colour, var(--accent));
+  outline-offset: -2px;
 }
 
 /*
@@ -554,6 +571,42 @@ body {
   text-overflow: ellipsis;
   color: var(--muted);
   transition: color var(--fast) var(--ease);
+}
+
+/*
+ * The payload, in full, under the row it belongs to.
+ *
+ * The summary above is an edit — it leads with what differs and drops the
+ * message id, which is the same on every row of an exchange. This is the
+ * record: everything, wrapped rather than clipped, and selectable. The two
+ * are one click apart so neither has to compromise for the other.
+ */
+.event-payload {
+  margin: 0 0.75rem 0.4rem 1.4rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-xs);
+  background: var(--surface-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  /* A tool result can be a whole file. The row it hangs off is one line tall;
+   * letting the payload push the rest of the log off screen would trade one
+   * unreadable column for another. */
+  max-height: 18rem;
+  overflow: auto;
+}
+
+/* An open row keeps the hover fill, so the line and its payload read as one
+ * block rather than two things that happen to be adjacent. */
+.event-details[open] > .event-row {
+  background: var(--surface-tertiary);
+}
+
+.event-details[open] > .event-row .event-data {
+  color: var(--foreground);
 }
 
 /*

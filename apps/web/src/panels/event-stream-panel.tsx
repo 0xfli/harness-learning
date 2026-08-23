@@ -10,7 +10,8 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { SessionEvent } from '@harness/session'
 import { eventColourToken, eventFamily } from '../event-colour.ts'
-import { formatClock, formatData } from '../format.ts'
+import { messageIdOf, payloadOf, summariseEvent } from '../event-summary.ts'
+import { formatClock } from '../format.ts'
 import { useSessionEvents } from '../use-session.ts'
 import { useTailFollow } from '../use-tail-follow.ts'
 import { Panel, PanelPlaceholder } from './panel.tsx'
@@ -50,26 +51,43 @@ interface EventRowProps {
   readonly event: SessionEvent
 }
 
+/**
+ * One event: a line that says what happened, and the payload behind it.
+ *
+ * The disclosure is a native `<details>`, so the browser owns whether a row is
+ * open. Nothing here holds that, nothing re-renders when it changes, and a
+ * row that is open stays open while a hundred events arrive above it — the
+ * same reason the composer's textarea is uncontrolled.
+ *
+ * @param props - the event to draw.
+ * @returns the row element.
+ */
 function EventRow({ event }: EventRowProps): ReactNode {
-  const data = formatData(event.data)
+  const payload = payloadOf(event)
+  const id = messageIdOf(event)
   // The row carries its colour as a custom property and the stylesheet decides
   // what to paint with it. React's style types do not know about those.
   const colour = { '--event-colour': `var(${eventColourToken(event.type)})` } as CSSProperties
 
   return (
-    <li
-      className="event-row"
-      style={colour}
-      data-seq={event.seq}
-      data-type={event.type}
-      data-family={eventFamily(event.type)}
-    >
-      <span className="event-seq">{event.seq}</span>
-      <time className="event-time" dateTime={new Date(event.time).toISOString()}>
-        {formatClock(event.time)}
-      </time>
-      <span className="event-type">{event.type}</span>
-      <span className="event-data">{data}</span>
+    <li className="event-item" style={colour}>
+      <details className="event-details">
+        <summary
+          className="event-row"
+          data-seq={event.seq}
+          data-type={event.type}
+          data-family={eventFamily(event.type)}
+          {...(id === undefined ? {} : { 'data-message-id': id })}
+        >
+          <span className="event-seq">{event.seq}</span>
+          <time className="event-time" dateTime={new Date(event.time).toISOString()}>
+            {formatClock(event.time)}
+          </time>
+          <span className="event-type">{event.type}</span>
+          <span className="event-data">{summariseEvent(event)}</span>
+        </summary>
+        {payload === '' ? null : <pre className="event-payload">{payload}</pre>}
+      </details>
     </li>
   )
 }

@@ -101,6 +101,10 @@ Watch the left column. You get one `user/message`, then a run of
 reply. Dozens of events for one sentence, which is the point: the streaming
 _process_ is recorded, not merely rendered.
 
+Each row leads with what is _different_ about its event — the delta, the
+arguments, the answer — rather than with the message id every row of an
+exchange shares. Click one to see the payload it was edited out of.
+
 Now refresh. Every chunk is still there, in order, with its original
 timestamps. That is the difference between accumulating the reply in a
 variable and appending each delta as a fact — see

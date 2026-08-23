@@ -208,6 +208,14 @@ gives the same bytes, and that identity is measured from the adapter's argument
 through to the text on screen. Implemented in `apps/web/src/model-view.ts`; see
 `docs/adr/0006-the-model-view-is-derived.md`.
 
+**Summary** — the one line a row of the event stream shows. Chosen per event
+type by a rule table in `apps/web/src/event-summary.ts`, and it leads with what
+_differs_: the delta, the arguments, the answer. Never the message id, which is
+identical on every row of an exchange — a clipped line of it shows the reader
+the one field that cannot tell two rows apart. A type with no rule falls back
+to its payload minus the id, so a new event type is legible the day it is
+invented. The payload itself is a click away, in full.
+
 **Family** — the namespace at the front of an event type: `assistant/chunk` and
 `assistant/message` are both the `assistant` family. The unit the inspector
 colours, so a new type in a known family needs no new colour and reads as
