@@ -202,6 +202,83 @@ body {
 }
 
 /*
+ * Which session is on screen, and the way to a different one. A native select
+ * rather than a menu built out of divs: the list is one line per session,
+ * every browser already knows how to open it with a keyboard, and the only
+ * thing worth styling is the closed control sitting in the header.
+ *
+ * It is capped rather than sized to its content — a session is titled by its
+ * opening question, and a long question would otherwise push the header's
+ * right-hand controls off the page.
+ */
+.session-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.session-picker-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--faint);
+}
+
+.session-select {
+  max-width: 18rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  cursor: pointer;
+  /* An option is as wide as its text; the control is not. */
+  text-overflow: ellipsis;
+  transition: color var(--fast) var(--ease);
+}
+
+.session-select:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.session-select:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.session-select:focus-visible,
+.session-new:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.session-new {
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.session-new:hover:not(:disabled) {
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+}
+
+.session-new:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+/*
  * A segmented control of three radios: the operating system's choice, and the
  * two ways to overrule it. Radios rather than a cycling button, so the current
  * scheme is announced and reachable without guessing what the next press does.

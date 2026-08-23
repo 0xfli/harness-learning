@@ -24,6 +24,7 @@ export default defineConfig({
     proxy: {
       '/events': { target: harnessOrigin, changeOrigin: true },
       '/messages': { target: harnessOrigin, changeOrigin: true },
+      '/sessions': { target: harnessOrigin, changeOrigin: true },
       '/health': { target: harnessOrigin, changeOrigin: true },
     },
   },

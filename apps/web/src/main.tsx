@@ -6,6 +6,11 @@
  * half is built here for the same reason, and kept separate from the feed:
  * replicating the log and adding to it are different jobs.
  *
+ * Which session all of that points at is read from the URL, once, before
+ * anything is built. A page shows one log for as long as it is open; looking
+ * at another is a navigation, and this module runs again from the top. See
+ * {@link module:session-url}.
+ *
  * There is no HeroUI provider to mount: v3 dropped the `HeroUIProvider` that
  * v2/NextUI required, and its components read their theme from `data-theme` on
  * the root element instead. Which is convenient here — a provider wrapping the
@@ -21,21 +26,32 @@ import { App } from './app.tsx'
 import { createExchangeClient } from './exchange-client.ts'
 import { ExchangeProvider } from './exchange-context.tsx'
 import { FeedProvider } from './feed-context.tsx'
+import { sessionInSearch, withSession } from './session-url.ts'
+import { createSessionsClient } from './sessions-client.ts'
+import { SessionsProvider } from './sessions-context.tsx'
 import './styles/app.css'
 
 const container = document.getElementById('root')
 if (container === null) throw new Error('index.html is missing #root')
 
+// `undefined` is a choice too: it leaves the session to the server, which
+// answers with the one this run started.
+const session = sessionInSearch(globalThis.location.search)
+
 const feedUrl = (import.meta.env.VITE_FEED_URL as string | undefined) ?? '/events'
-const feed = createSessionFeed({ url: feedUrl })
+const feed = createSessionFeed({ url: withSession(feedUrl, session) })
 const messagesUrl = (import.meta.env.VITE_MESSAGES_URL as string | undefined) ?? '/messages'
-const startExchange = createExchangeClient({ url: messagesUrl })
+const startExchange = createExchangeClient({ url: withSession(messagesUrl, session) })
+const sessionsUrl = (import.meta.env.VITE_SESSIONS_URL as string | undefined) ?? '/sessions'
+const sessions = createSessionsClient({ url: sessionsUrl })
 
 createRoot(container).render(
   <StrictMode>
     <FeedProvider feed={feed}>
       <ExchangeProvider start={startExchange}>
-        <App />
+        <SessionsProvider sessions={sessions}>
+          <App />
+        </SessionsProvider>
       </ExchangeProvider>
     </FeedProvider>
   </StrictMode>,
