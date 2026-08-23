@@ -145,6 +145,17 @@ through a form action, so "sending" and "that failed" are the action's own
 state rather than flags somebody has to remember to clear, and the request
 stays open for as long as the model is replying.
 
+**Picker** — the session control in the inspector's header: what is on the
+shelf, and the way to another. It reads the list once when it mounts and holds
+nothing, because a **session summary** is a fold over a log that keeps growing.
+Implemented in `apps/web/src/session-picker.tsx`.
+
+**Pinned page** — an inspector at `?session=<id>`: this log and no other, and a
+link somebody can send. A page with no `session` in its query is _following the
+run_ instead — the server answers with whatever session it started, so the page
+survives a restart of the harness. Choosing a session is a navigation, never a
+swap; see `docs/adr/0010-the-page-names-its-session-in-the-url.md`.
+
 **Optimistic turn** — the turn a human has said and the log has not confirmed
 yet. Added to the projection by `withOptimistic` and dropped the moment a
 `user/message` with the same id lands. Exact rather than heuristic because the
@@ -204,9 +215,11 @@ they sit side by side in one plane, and a border tells them apart.
 **Scheme** — light or dark. Follows the operating system by default, through
 `color-scheme: light dark` rather than through JavaScript, and is overruled by
 `data-theme` on the root element. The choice lives outside React in
-`apps/web/src/theme-store.ts` — it is the only state in `apps/web` that is not
-a projection of the log, and it is kept out of the component tree for the same
-reason the log is.
+`apps/web/src/theme-store.ts` — it is the only state in `apps/web` that
+outlives a render and is not a projection of the log, and it is kept out of the
+component tree for the same reason the log is. (The **picker**'s list of
+sessions is state too, and deliberately the other kind: local to one component
+and thrown away with it.)
 
 ## Layout
 

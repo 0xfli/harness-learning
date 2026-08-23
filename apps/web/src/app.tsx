@@ -14,6 +14,7 @@ import { ConnectionStatus } from './connection-status.tsx'
 import { ConversationPanel } from './panels/conversation-panel.tsx'
 import { EventStreamPanel } from './panels/event-stream-panel.tsx'
 import { ModelViewPanel } from './panels/model-view-panel.tsx'
+import { SessionPicker } from './session-picker.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 
 /**
@@ -41,6 +42,7 @@ export function App(): ReactNode {
           </div>
         </div>
         <ConnectionStatus />
+        <SessionPicker />
         <ThemeToggle />
       </header>
       <main className="inspector-columns">

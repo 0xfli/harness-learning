@@ -43,9 +43,10 @@ pnpm dev
 
 That starts the log on `http://localhost:8787` and the inspector on
 `http://localhost:5173`. Open the inspector: three columns, each scrolling on
-its own, and the left one already filled with the seeded history. The middle
-one has a box at the bottom — that is the next section. The feed is proxied
-through Vite, so the page never learns which origin the log lives on.
+its own, and all three empty — a run starts a session of its own, and nothing
+has happened in this one yet. The header says which session that is, and the
+middle column has a box at the bottom — that is the next section. The feed is
+proxied through Vite, so the page never learns which origin the log lives on.
 
 In another terminal, append a fact and watch every open tab show it at the same
 moment, with nothing polling:
@@ -195,6 +196,23 @@ straight back into one with `HARNESS_SESSION=20260823-074139-k3f9 pnpm
 dev:server`, and see
 [`docs/adr/0009`](./docs/adr/0009-a-run-starts-a-session.md) for why that is
 opt-in.
+
+In the inspector the same thing is a menu. The header lists what is on the
+shelf — what each session was about, when it last moved, how many events it
+holds — and picking one loads it:
+
+```text
+session [ what is a harness? · 4m ago · 214 events        ▾ ] [ new ]
+```
+
+The page it takes you to is `http://localhost:5173/?session=20260823-074139-k3f9`,
+which is the whole trick: the session is named in the URL, so it is a link you
+can send and a page that reloads into the same conversation. Leave the
+parameter off — by picking the session marked _this run_ — and the page follows
+whatever session the harness is on, across restarts and file-watch reloads.
+Choosing is a navigation rather than a swap, so no panel ever shows two logs at
+once; see
+[`docs/adr/0010`](./docs/adr/0010-the-page-names-its-session-in-the-url.md).
 
 One session is one file, and the file's name is the session's id — so `ls`,
 `mv` and `rm` are the whole management interface, and a journal from before the

@@ -16,6 +16,8 @@ import { App } from '../../src/app.tsx'
 import type { OutgoingMessage, StartExchange } from '../../src/exchange-client.ts'
 import { ExchangeProvider } from '../../src/exchange-context.tsx'
 import { FeedProvider } from '../../src/feed-context.tsx'
+import type { SessionCatalogue, Sessions } from '../../src/sessions-client.ts'
+import { SessionsProvider } from '../../src/sessions-context.tsx'
 
 /** Exchanges the page started, held open until the test says otherwise. */
 export interface FakeExchanges {
@@ -75,6 +77,7 @@ export interface MountedInspector extends RenderResult {
   readonly transport: FakeTransport
   readonly errors: readonly FeedError[]
   readonly exchanges: FakeExchanges
+  readonly shelf: FakeShelf
   /** Deliver events to the current connection, the way the server would. */
   send(...events: readonly { seq: number; type: string; time: number }[]): void
   /** Bring the connection up. */
@@ -87,6 +90,89 @@ export interface MountedInspector extends RenderResult {
   settle(): Promise<void>
   /** Fail the exchange in flight, and flush what that re-renders. */
   fail(message: string): Promise<void>
+}
+
+/** A shelf nobody has to keep sessions on. */
+export interface FakeShelf extends Sessions {
+  /** Every session the page asked to look at; `undefined` means "the run's". */
+  readonly opened: readonly (string | undefined)[]
+  /** How many sessions the page asked to start. */
+  readonly starts: number
+  /** Answer the read in flight, and flush what that re-renders. */
+  answer(catalogue: SessionCatalogue): Promise<void>
+  /** Fail the read in flight. */
+  refuse(message: string): Promise<void>
+  /** Answer the create in flight with the new session's id. */
+  started(id: string): Promise<void>
+}
+
+/**
+ * A shelf that answers nothing until told to.
+ *
+ * Pending by default on purpose: a picker that has not been answered renders
+ * one placeholder and never sets state, so every test that mounts the
+ * inspector for some other reason gets no re-render it did not ask for and no
+ * `act` warning to go with it.
+ *
+ * @returns the client, and the controls to answer what it is holding.
+ */
+export function fakeShelf(): FakeShelf {
+  const opened: (string | undefined)[] = []
+  const reads: Held<SessionCatalogue>[] = []
+  const creates: Held<string>[] = []
+  let starts = 0
+
+  const next = <T,>(queue: Held<T>[], what: string): Held<T> => {
+    const held = queue.shift()
+    if (held === undefined) throw new Error(`no ${what} is in flight`)
+    return held
+  }
+
+  return {
+    opened,
+    get starts(): number {
+      return starts
+    },
+    list: async ({ signal } = {}) =>
+      new Promise<SessionCatalogue>((resolve, reject) => {
+        reads.push({ resolve, reject })
+        // Unmounting aborts the read. The picker ignores what comes back;
+        // rejecting is how the real client behaves and the only way this
+        // promise is ever released.
+        signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'))
+        })
+      }),
+    create: async () => {
+      starts += 1
+      return new Promise<string>((resolve, reject) => {
+        creates.push({ resolve, reject })
+      })
+    },
+    open: (id) => {
+      opened.push(id)
+    },
+    answer: async (catalogue) => {
+      await flush(() => {
+        next(reads, 'read').resolve(catalogue)
+      })
+    },
+    refuse: async (message) => {
+      await flush(() => {
+        next(reads, 'read').reject(new Error(message))
+      })
+    },
+    started: async (id) => {
+      await flush(() => {
+        next(creates, 'create').resolve(id)
+      })
+    },
+  }
+}
+
+interface Held<T> {
+  resolve: (value: T) => void
+  reject: (error: unknown) => void
 }
 
 /**
@@ -102,6 +188,7 @@ export function mountInspector(): MountedInspector {
     onError: (error) => errors.push(error),
   })
   const exchanges = fakeExchanges()
+  const shelf = fakeShelf()
 
   // React 19 entangles every async action that is in flight at the same time
   // into one transition, and that entanglement is global rather than per root.
@@ -117,7 +204,9 @@ export function mountInspector(): MountedInspector {
   const view = render(
     <FeedProvider feed={feed}>
       <ExchangeProvider start={exchanges.start}>
-        <App />
+        <SessionsProvider sessions={shelf}>
+          <App />
+        </SessionsProvider>
       </ExchangeProvider>
     </FeedProvider>,
   )
@@ -134,6 +223,7 @@ export function mountInspector(): MountedInspector {
     transport,
     errors,
     exchanges,
+    shelf,
     send: (...events) => {
       // Frames arrive outside React, exactly as they will in the browser; act
       // is what tells React the resulting renders have been flushed.
