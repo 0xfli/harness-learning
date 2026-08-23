@@ -48,7 +48,7 @@ describe('the event stream', () => {
     view.send(wireEvent(0, 'demo/hello', { message: 'the log exists' }), wireEvent(1, 'demo/bye'))
 
     expect(stream(view)).toEqual([
-      '0 22:13:20.000 demo/hello {"message":"the log exists"}',
+      '0 22:13:20.000 demo/hello the log exists',
       '1 22:13:20.001 demo/bye ',
     ])
   })
@@ -118,6 +118,9 @@ describe('two tabs', () => {
     right.send(wireEvent(0, 'demo/hello', { from: 'curl' }))
 
     expect(stream(left)).toEqual(stream(right))
+    // No rule knows `from`, so the row falls back to the payload rather than
+    // rendering a blank line — a rule with nothing to say is not a licence to
+    // hide the event.
     expect(stream(left)).toEqual(['0 22:13:20.000 demo/hello {"from":"curl"}'])
   })
 })
@@ -135,5 +138,102 @@ describe('the connection indicator', () => {
 
     view.close()
     expect(status()?.textContent).toBe('closed')
+  })
+})
+
+describe('a row in the event stream', () => {
+  /** Each row as `type · summary`, which is what a reader scans. */
+  function summaries(view: MountedInspector): string[] {
+    return [...view.container.querySelectorAll('.event-row')].map((row) => {
+      const type = row.querySelector('.event-type')?.textContent ?? ''
+      return `${type} · ${row.querySelector('.event-data')?.textContent ?? ''}`
+    })
+  }
+
+  const ID = '1b4f978e-1c38-4e85-9f5b-b5518a8abc60'
+
+  it('says what is different about it, not what every row shares', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'user/message', { id: ID, text: 'what is in src?' }),
+      wireEvent(1, 'assistant/chunk', { id: ID, step: 0, index: 0, text: 'Calling' }),
+      wireEvent(2, 'assistant/usage', { id: ID, step: 0, input: 13, output: 2 }),
+      wireEvent(3, 'tool/call', {
+        id: ID,
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        arguments: '{"path":"src"}',
+      }),
+      wireEvent(4, 'tool/result', {
+        id: ID,
+        step: 0,
+        callId: 'call_1',
+        name: 'list_directory',
+        content: 'index.ts',
+        isError: false,
+      }),
+    )
+
+    expect(summaries(view)).toEqual([
+      'user/message · what is in src?',
+      'assistant/chunk · "Calling"',
+      'assistant/usage · 13 in · 2 out',
+      'tool/call · list_directory({"path":"src"})',
+      'tool/result · list_directory → index.ts',
+    ])
+  })
+
+  it('shows no row that begins with the id every row of an exchange carries', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'assistant/chunk', { id: ID, step: 0, index: 0, text: 'a' }),
+      wireEvent(1, 'assistant/chunk', { id: ID, step: 0, index: 1, text: 'b' }),
+    )
+
+    expect(summaries(view).filter((line) => line.includes(ID))).toEqual([])
+  })
+
+  it('keeps the whole payload one click away', () => {
+    const view = mountInspector()
+
+    view.send(
+      wireEvent(0, 'tool/call', { id: ID, callId: 'c1', name: 'read_file', arguments: '{}' }),
+    )
+
+    // The summary is an edit of the payload; the payload is still the record.
+    const payload = view.container.querySelector('.event-payload')?.textContent ?? ''
+    expect(JSON.parse(payload)).toEqual({
+      id: ID,
+      callId: 'c1',
+      name: 'read_file',
+      arguments: '{}',
+    })
+  })
+
+  it('lets the browser own whether a row is open', () => {
+    // Native `<details>`, so nothing in React holds it and a row that is open
+    // stays open while events arrive above it.
+    const view = mountInspector()
+
+    view.send(wireEvent(0, 'demo/hello', { message: 'the log exists' }))
+    const details = view.container.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details?.open).toBe(false)
+
+    details?.setAttribute('open', '')
+    view.send(wireEvent(1, 'demo/hello', { message: 'facts go in, in order' }))
+
+    expect(view.container.querySelector('details')?.open).toBe(true)
+  })
+
+  it('draws no payload block for an event that has none', () => {
+    const view = mountInspector()
+
+    view.send(wireEvent(0, 'demo/bye'))
+
+    expect(view.container.querySelector('.event-payload')).toBeNull()
   })
 })

@@ -1,10 +1,8 @@
 /**
- * Turning an event into one line of text.
+ * Turning a number into text a human reads: a clock, a date, an age.
  *
  * @module
  */
-
-import type { JsonObject } from '@harness/session'
 
 /**
  * A wall clock reading, to the millisecond.
@@ -22,18 +20,6 @@ export function formatClock(time: number): string {
     `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}` +
     `.${pad(at.getMilliseconds(), 3)}`
   )
-}
-
-/**
- * An event payload as a single line.
- *
- * @param data - the event payload.
- * @returns compact JSON, or an empty string for an empty payload — a lone
- *   `{}` on every row is noise, and the type already said what happened.
- */
-export function formatData(data: JsonObject): string {
-  const json = JSON.stringify(data)
-  return json === '{}' ? '' : json
 }
 
 /**

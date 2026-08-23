@@ -9,18 +9,89 @@
  */
 
 /** Who said it. */
-export type MessageRole = 'system' | 'user' | 'assistant'
+export type MessageRole = 'system' | 'user' | 'assistant' | 'tool'
+
+/**
+ * A tool the model may ask for, as the provider is told about it.
+ *
+ * `parameters` is a JSON Schema and this package never looks inside it: the
+ * schema is written by whoever wrote the tool, and every byte of it is for the
+ * model. Typing it as anything narrower than "some JSON object" would be this
+ * layer claiming an opinion it does not have.
+ */
+export interface ToolSchema {
+  /** What the model calls it. Unique within a request. */
+  readonly name: string
+  /** What it does, in the model's only documentation. */
+  readonly description: string
+  /** JSON Schema for the arguments. Passed through untouched. */
+  readonly parameters: Readonly<Record<string, unknown>>
+}
+
+/**
+ * One request from the model to run a tool.
+ *
+ * `arguments` is the raw JSON *text* the provider streamed, not a parsed
+ * value, and that is deliberate. It is what actually arrived — including when
+ * a model emits JSON that does not parse, which happens — so recording it
+ * keeps the log lossless, and parsing it exactly once, where the failure can
+ * become a result, keeps the failure in one place. See `runTool` in
+ * `@harness/tools`.
+ */
+export interface ToolCall {
+  /** The provider's id for this call. What a result is matched back to. */
+  readonly id: string
+  /** Which tool. Not guaranteed to be one that exists. */
+  readonly name: string
+  /** The arguments, as JSON text. Not guaranteed to parse. */
+  readonly arguments: string
+}
+
+/** Anything a human or the harness said, as a plain string. */
+export interface SaidMessage {
+  readonly role: 'system' | 'user'
+  readonly content: string
+}
+
+/**
+ * What the model said, and what it wants done about it.
+ *
+ * `content` and `toolCalls` are not alternatives: a model may explain itself
+ * and call a tool in the same breath, and a model calling a tool with nothing
+ * to say sends an empty string rather than no message at all.
+ */
+export interface AssistantMessage {
+  readonly role: 'assistant'
+  readonly content: string
+  /** Present only when the model asked for a tool. */
+  readonly toolCalls?: readonly ToolCall[]
+  /**
+   * What the model thought before it answered.
+   *
+   * Present only when the request that produced it carried tools, because
+   * that is the only case in which a provider wants its own reasoning back —
+   * see `MESSAGE_RULES` in `@harness/exchange`.
+   */
+  readonly reasoning?: string
+}
+
+/** What a tool said back. Always answers exactly one {@link ToolCall}. */
+export interface ToolMessage {
+  readonly role: 'tool'
+  readonly content: string
+  /** The {@link ToolCall.id} this answers. */
+  readonly toolCallId: string
+}
 
 /**
  * One message in a request.
  *
- * Content is a plain string for now. Content blocks — reasoning, images, tool
- * calls — are a later step; the union below is where they will arrive.
+ * A union rather than one shape with optional fields, for the reason given on
+ * {@link StreamChunk}: `role` is already the discriminant every provider
+ * writes down, so letting the compiler read it costs nothing and stops a
+ * `toolCallId` from being quietly attached to a user message.
  */
-export interface ModelMessage {
-  readonly role: MessageRole
-  readonly content: string
-}
+export type ModelMessage = SaidMessage | AssistantMessage | ToolMessage
 
 /**
  * One thing that happened while the model was replying.
@@ -34,6 +105,23 @@ export interface ModelMessage {
 export type StreamChunk =
   /** A piece of the reply text, in order. Concatenating these is the message. */
   | { readonly type: 'text-delta'; readonly text: string }
+  /**
+   * The model asked for a tool, with its arguments complete.
+   *
+   * Deliberately not streamed in pieces, and this is the one place the "every
+   * delta is a fact" rule of `@harness/exchange` does not reach. A provider
+   * sends a tool call's `arguments` as JSON split across frames at arbitrary
+   * byte boundaries, and half of a JSON object is not a smaller fact — it is
+   * not a fact at all. Nobody can render it, nobody can act on it, and the
+   * only thing anybody ever does with the fragments is glue them back
+   * together. Reassembling one field of a wire format is wire-format work, so
+   * it happens here and the harness above is handed calls it can use.
+   *
+   * What is not lost by that: the assembled `arguments` reach the log verbatim
+   * as a `tool/call` event, unparsed, so a malformed call is still recorded
+   * exactly as the model emitted it.
+   */
+  | { readonly type: 'tool-call'; readonly call: ToolCall }
   /**
    * A piece of the model's reasoning, in order.
    *
@@ -77,6 +165,16 @@ export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | '
 export interface StreamOptions {
   /** Aborts the request. The adapter stops iterating and the socket closes. */
   readonly signal?: AbortSignal
+  /**
+   * The tools the model may call, sent with the request.
+   *
+   * Per-request rather than per-adapter because what is on the table is a
+   * property of the conversation, not of the provider — and because an empty
+   * list has to mean "send no `tools` field at all". A provider handed an
+   * empty array is being told something different from a provider handed
+   * nothing.
+   */
+  readonly tools?: readonly ToolSchema[]
 }
 
 /**

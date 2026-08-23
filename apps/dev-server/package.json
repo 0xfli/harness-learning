@@ -11,7 +11,8 @@
   "dependencies": {
     "@harness/exchange": "workspace:*",
     "@harness/llm": "workspace:*",
-    "@harness/session": "workspace:*"
+    "@harness/session": "workspace:*",
+    "@harness/tools": "workspace:*"
   },
   "devDependencies": {
     "@harness/session-feed": "workspace:*"

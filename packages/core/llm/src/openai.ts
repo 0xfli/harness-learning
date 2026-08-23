@@ -25,8 +25,12 @@ import type {
   ReasoningEffort,
   StreamChunk,
   StreamOptions,
+  ToolCall,
 } from './types.ts'
-import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import type {
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions'
 import type { StreamedDelta } from './openai-extensions.ts'
 
 /** How to reach the provider. */
@@ -103,13 +107,30 @@ export function createOpenAiAdapter(options: OpenAiAdapterOptions): ModelAdapter
       messages: readonly ModelMessage[],
       streamOptions: StreamOptions = {},
     ): AsyncGenerator<StreamChunk> {
+      const tools = streamOptions.tools ?? []
       const body: ChatCompletionCreateParamsStreaming = {
         model: options.model,
-        messages: messages.map((message) => ({ role: message.role, content: message.content })),
+        messages: messages.map(onTheWire),
         stream: true,
         // Without this the final usage frame is simply never sent, and the cost
         // of the request is unknowable rather than merely unknown.
         stream_options: { include_usage: true },
+        // An empty list is not "no tools": a provider handed `tools: []` is
+        // being told the model may call nothing, which is a different request
+        // from one that never mentioned tools — and, for DeepSeek, the
+        // difference that decides whether reasoning must be replayed.
+        ...(tools.length === 0
+          ? {}
+          : {
+              tools: tools.map((tool) => ({
+                type: 'function' as const,
+                function: {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: tool.parameters,
+                },
+              })),
+            }),
         ...(options.reasoning === undefined ? {} : { reasoning_effort: options.reasoning }),
         ...(options.thinking === undefined ? {} : { thinking: { type: options.thinking } }),
       }
@@ -119,12 +140,63 @@ export function createOpenAiAdapter(options: OpenAiAdapterOptions): ModelAdapter
           body,
           streamOptions.signal === undefined ? {} : { signal: streamOptions.signal },
         )
-        for await (const frame of stream) yield* chunksOf(frame)
+        // Tool-call arguments arrive split across frames, so the accumulator
+        // outlives any one of them. It is flushed when the provider says it
+        // has finished, and again at end of stream in case it never did.
+        const partial = new Map<number, PartialToolCall>()
+        for await (const frame of stream) yield* chunksOf(frame, partial)
+        yield* flush(partial)
       } catch (error) {
         throw translate(error, name, endpoint)
       }
     },
   }
+}
+
+/**
+ * One message, in the provider's spelling.
+ *
+ * The only place the harness's camelCase meets the wire's snake_case. Kept to
+ * one function so "what does a tool result look like on the wire?" has one
+ * answer, and so the {@link ModelMessage} union above stays readable prose
+ * rather than a transcription of somebody's JSON.
+ *
+ * @param message - one derived message.
+ * @returns the SDK's parameter shape.
+ */
+function onTheWire(message: ModelMessage): ChatCompletionMessageParam {
+  switch (message.role) {
+    case 'tool':
+      return { role: 'tool', content: message.content, tool_call_id: message.toolCallId }
+
+    case 'assistant':
+      return {
+        role: 'assistant',
+        content: message.content,
+        ...(message.toolCalls === undefined || message.toolCalls.length === 0
+          ? {}
+          : {
+              tool_calls: message.toolCalls.map((call) => ({
+                id: call.id,
+                type: 'function' as const,
+                function: { name: call.name, arguments: call.arguments },
+              })),
+            }),
+        ...(message.reasoning === undefined || message.reasoning.length === 0
+          ? {}
+          : { reasoning_content: message.reasoning }),
+      }
+
+    default:
+      return { role: message.role, content: message.content }
+  }
+}
+
+/** A tool call being glued back together, frame by frame. */
+interface PartialToolCall {
+  id: string
+  name: string
+  arguments: string
 }
 
 /**
@@ -135,9 +207,14 @@ export function createOpenAiAdapter(options: OpenAiAdapterOptions): ModelAdapter
  * to fail a request that is otherwise arriving fine.
  *
  * @param frame - one `chat.completion.chunk`, as the SDK parsed it.
+ * @param partial - tool calls accumulated so far, keyed by the provider's
+ *   `index`. Mutated: a frame carries fragments, not calls.
  * @returns the chunks that frame represents.
  */
-function* chunksOf(frame: OpenAI.ChatCompletionChunk): Generator<StreamChunk> {
+function* chunksOf(
+  frame: OpenAI.ChatCompletionChunk,
+  partial: Map<number, PartialToolCall>,
+): Generator<StreamChunk> {
   for (const choice of frame.choices ?? []) {
     const delta: StreamedDelta | undefined = choice.delta
 
@@ -153,7 +230,23 @@ function* chunksOf(frame: OpenAI.ChatCompletionChunk): Generator<StreamChunk> {
       yield { type: 'text-delta', text: content }
     }
 
+    // `index` is the only thing tying a fragment to the call it belongs to.
+    // Two calls in one reply interleave their fragments freely, and only the
+    // first fragment of each carries the id and the name.
+    for (const fragment of delta?.tool_calls ?? []) {
+      const held = partial.get(fragment.index) ?? { id: '', name: '', arguments: '' }
+      if (typeof fragment.id === 'string' && fragment.id.length > 0) held.id = fragment.id
+      const name = fragment.function?.name
+      if (typeof name === 'string' && name.length > 0) held.name = name
+      const args = fragment.function?.arguments
+      if (typeof args === 'string') held.arguments += args
+      partial.set(fragment.index, held)
+    }
+
     if (typeof choice.finish_reason === 'string') {
+      // Before the finish, because a caller that stops reading at `finish`
+      // would otherwise never see the calls that finish is reporting.
+      yield* flush(partial)
       yield { type: 'finish', reason: choice.finish_reason }
     }
   }
@@ -165,6 +258,30 @@ function* chunksOf(frame: OpenAI.ChatCompletionChunk): Generator<StreamChunk> {
     if (typeof input === 'number' && typeof output === 'number') {
       yield { type: 'usage', input, output }
     }
+  }
+}
+
+/**
+ * Emit every accumulated call and empty the accumulator.
+ *
+ * In `index` order rather than insertion order, because the order the model
+ * asked for things in is the order they should be run in, and a provider is
+ * free to send the first fragment of its second call first.
+ *
+ * A call with no name is dropped: it is a fragment of something that never
+ * finished arriving, and inventing a nameless call would put a `tool/call` in
+ * the log that no result could ever answer.
+ *
+ * @param partial - the accumulator. Emptied.
+ * @returns one `tool-call` chunk per complete call.
+ */
+function* flush(partial: Map<number, PartialToolCall>): Generator<StreamChunk> {
+  const pending = [...partial.entries()].toSorted(([left], [right]) => left - right)
+  partial.clear()
+  for (const [, held] of pending) {
+    if (held.name.length === 0) continue
+    const call: ToolCall = { id: held.id, name: held.name, arguments: held.arguments }
+    yield { type: 'tool-call', call }
   }
 }
 

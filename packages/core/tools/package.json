@@ -1,0 +1,15 @@
+{
+  "name": "@harness/tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The tools a model may call, and the promise that running one always produces a result.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fs": "./src/fs.ts"
+  },
+  "dependencies": {
+    "@harness/llm": "workspace:*",
+    "@harness/session": "workspace:*"
+  }
+}

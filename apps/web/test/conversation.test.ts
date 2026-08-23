@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import type { JsonObject, SessionEvent } from '@harness/session'
 import { deriveConversation, optimisticTurn, withOptimistic } from '../src/conversation.ts'
+import type { Turn } from '../src/conversation.ts'
 
 function event(seq: number, type: string, data: JsonObject): SessionEvent {
   return { seq, type, time: 1_700_000_000_000 + seq, data }
@@ -30,7 +31,18 @@ function exchange(id: string) {
 
 /** Each turn as `role · state · text`, which is all a reader cares about. */
 function shape(events: readonly SessionEvent[]): string[] {
-  return deriveConversation(events).map((turn) => `${turn.role} · ${turn.state} · ${turn.text}`)
+  return deriveConversation(events).map((turn) => `${turn.role} · ${turn.state} · ${textOf(turn)}`)
+}
+
+/** What a turn says, whichever kind it is. */
+function textOf(turn: Turn | undefined): string {
+  if (turn === undefined) return ''
+  return turn.role === 'tool' ? turn.result : turn.text
+}
+
+/** Why a turn failed, when it is the kind of turn that can say. */
+function errorOf(turn: Turn | undefined): string | undefined {
+  return turn === undefined || turn.role === 'tool' ? undefined : turn.error
 }
 
 describe('deriving the conversation', () => {
@@ -110,11 +122,11 @@ describe('deriving the conversation', () => {
       one.broke(2, 'provider hung up'),
     ])
 
-    expect(turns.map((turn) => `${turn.state} · ${turn.text}`)).toEqual([
+    expect(turns.map((turn) => `${turn.state} · ${textOf(turn)}`)).toEqual([
       'complete · hi',
       'failed · half a sen',
     ])
-    expect(turns[1]?.error).toBe('provider hung up')
+    expect(errorOf(turns[1])).toBe('provider hung up')
   })
 
   it('keeps two replies apart when their deltas interleave', () => {
@@ -145,9 +157,10 @@ describe('deriving the conversation', () => {
     const turns = deriveConversation([one.said(0, 'hi'), one.replied(1, 'hello')])
 
     // Both carry the same message id — an id names an exchange, not a bubble —
-    // so the key has to be more than the id.
+    // so the key has to be more than the id. And an exchange can now hold more
+    // than one reply, so the key has to be more than the role too.
     expect(turns.map((turn) => turn.id)).toEqual(['a', 'a'])
-    expect(turns.map((turn) => turn.key)).toEqual(['user:a', 'assistant:a'])
+    expect(turns.map((turn) => turn.key)).toEqual(['user:a', 'assistant:a:0'])
   })
 
   it('ignores events that belong to another column', () => {
@@ -212,7 +225,7 @@ describe('the turn the log has not confirmed yet', () => {
   it('still shows when a different exchange lands first', () => {
     const other = deriveConversation([exchange('b').said(0, 'something else')])
 
-    expect(withOptimistic(other, optimisticTurn('a', 'mine')).map((turn) => turn.text)).toEqual([
+    expect(withOptimistic(other, optimisticTurn('a', 'mine')).map(textOf)).toEqual([
       'something else',
       'mine',
     ])
@@ -222,5 +235,169 @@ describe('the turn the log has not confirmed yet', () => {
     const turns = deriveConversation([exchange('a').said(0, 'hi')])
 
     expect(withOptimistic(turns, undefined)).toBe(turns)
+  })
+})
+
+/** One step's worth of tool events, as `recordExchange` writes them. */
+function call(id: string, step: number, callId: string) {
+  return {
+    asked: (seq: number, name: string, args: string) =>
+      event(seq, 'tool/call', { id, step, callId, name, arguments: args }),
+    answered: (seq: number, name: string, content: string, isError = false) =>
+      event(seq, 'tool/result', { id, step, callId, name, content, isError }),
+    replied: (seq: number, text: string) =>
+      event(seq, 'assistant/message', { id, step, text, reason: 'stop', chunks: 1 }),
+    calling: (seq: number, calls: unknown) =>
+      event(seq, 'assistant/message', {
+        id,
+        step,
+        text: '',
+        reason: 'tool_calls',
+        chunks: 0,
+        toolCalls: calls as never,
+      }),
+  }
+}
+
+describe('tool cards', () => {
+  it('opens a card the moment a call is logged, with no result yet', () => {
+    const c = call('a', 0, 'call_1')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'what is in src?'),
+      c.asked(1, 'list_directory', '{"path":"src"}'),
+    ])
+    const card = turns[1]
+
+    expect(card?.role).toBe('tool')
+    expect(card?.state).toBe('pending')
+    expect(card?.role === 'tool' && card.name).toBe('list_directory')
+    expect(card?.role === 'tool' && card.arguments).toBe('{"path":"src"}')
+    expect(card?.role === 'tool' && card.result).toBe('')
+  })
+
+  it('finishes the same card when the result lands — it does not open a second', () => {
+    // Pending is the absence of a fact, not a flag: nothing sets it, and
+    // nothing clears it. Appending the result is the whole transition.
+    const c = call('a', 0, 'call_1')
+    const before = [exchange('a').said(0, 'what is in src?'), c.asked(1, 'list_directory', '{}')]
+    const after = [...before, c.answered(2, 'list_directory', 'index.ts\nmain.ts')]
+
+    expect(deriveConversation(before)).toHaveLength(2)
+    const turns = deriveConversation(after)
+
+    expect(turns).toHaveLength(2)
+    expect(turns[1]?.key).toBe(deriveConversation(before)[1]?.key)
+    expect(turns[1]?.state).toBe('complete')
+    expect(textOf(turns[1])).toBe('index.ts\nmain.ts')
+  })
+
+  it('shows a failing tool as a finished card, not a broken turn', () => {
+    const c = call('a', 0, 'call_1')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'read nope.md'),
+      c.asked(1, 'read_file', '{"path":"nope.md"}'),
+      c.answered(2, 'read_file', '"nope.md" does not exist', true),
+    ])
+    const card = turns[1]
+
+    expect(card?.state).toBe('failed')
+    expect(card?.role === 'tool' && card.isError).toBe(true)
+    expect(textOf(card)).toBe('"nope.md" does not exist')
+  })
+
+  it('keeps two calls of one step apart, in the order they were logged', () => {
+    const first = call('a', 0, 'call_1')
+    const second = call('a', 0, 'call_2')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'read both'),
+      first.asked(1, 'read_file', '{"path":"a.md"}'),
+      second.asked(2, 'read_file', '{"path":"b.md"}'),
+      second.answered(3, 'read_file', 'bee'),
+      first.answered(4, 'read_file', 'ay'),
+    ])
+
+    expect(turns.map((turn) => `${turn.state} · ${textOf(turn)}`)).toEqual([
+      'complete · read both',
+      'complete · ay',
+      'complete · bee',
+    ])
+  })
+
+  it('puts the card between the two things the model said', () => {
+    const c = call('a', 0, 'call_1')
+    const answer = call('a', 1, 'unused')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'what is in src?'),
+      c.replied(1, 'Let me look.'),
+      c.asked(2, 'list_directory', '{"path":"src"}'),
+      c.answered(3, 'list_directory', 'index.ts'),
+      answer.replied(4, 'One file: index.ts.'),
+    ])
+
+    expect(turns.map((turn) => `${turn.role} · ${textOf(turn)}`)).toEqual([
+      'user · what is in src?',
+      'assistant · Let me look.',
+      'tool · index.ts',
+      'assistant · One file: index.ts.',
+    ])
+  })
+
+  it('keeps the two replies of one exchange apart', () => {
+    // Before steps, both replies shared the key `assistant:a` and the second
+    // silently overwrote the first. The step is what separates them.
+    const c = call('a', 0, 'call_1')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'hi'),
+      c.replied(1, 'Let me look.'),
+      c.asked(2, 'list_directory', '{}'),
+      c.answered(3, 'list_directory', 'index.ts'),
+      call('a', 1, 'unused').replied(4, 'One file.'),
+    ])
+
+    expect(turns.map((turn) => turn.key)).toEqual([
+      'user:a',
+      'assistant:a:0',
+      'tool:a:call_1',
+      'assistant:a:1',
+    ])
+  })
+
+  it('does not draw an empty bubble for a reply that was only tool calls', () => {
+    const c = call('a', 0, 'call_1')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'what is in src?'),
+      c.calling(1, [{ id: 'call_1', name: 'list_directory', arguments: '{}' }]),
+      c.asked(2, 'list_directory', '{}'),
+      c.answered(3, 'list_directory', 'index.ts'),
+    ])
+
+    expect(turns.map((turn) => turn.role)).toEqual(['user', 'tool'])
+  })
+
+  it('ignores a result whose call it never saw', () => {
+    // Impossible if the loop is working; harmless if a log is truncated.
+    const turns = deriveConversation([
+      exchange('a').said(0, 'hi'),
+      call('a', 0, 'call_1').answered(1, 'read_file', 'contents'),
+    ])
+
+    expect(turns.map((turn) => turn.role)).toEqual(['user'])
+  })
+
+  it('shows where a run that hit the step limit was cut off', () => {
+    const c = call('a', 0, 'call_1')
+    const turns = deriveConversation([
+      exchange('a').said(0, 'keep going'),
+      c.asked(1, 'list_directory', '{}'),
+      c.answered(2, 'list_directory', 'index.ts'),
+      event(3, 'error/steps', { id: 'a', step: 1, limit: 1, message: 'stopped after 1 step' }),
+    ])
+
+    expect(turns.map((turn) => `${turn.role} · ${turn.state}`)).toEqual([
+      'user · complete',
+      'tool · complete',
+      'assistant · failed',
+    ])
+    expect(errorOf(turns[2])).toBe('stopped after 1 step')
   })
 })

@@ -77,7 +77,7 @@ describe('recordExchange', () => {
     const result = await recordExchange({ log, adapter, text: 'hi', newId: counter() })
 
     const usage = log.events.find((event) => event.type === 'assistant/usage')
-    expect(usage?.data).toEqual({ id: 'm1', input: 42, output: 7 })
+    expect(usage?.data).toEqual({ id: 'm1', step: 0, input: 42, output: 7 })
     expect(result.usage).toEqual({ input: 42, output: 7 })
   })
 
@@ -137,10 +137,15 @@ describe('recordExchange', () => {
     expect(result.reason).toBe('length')
     expect(result.assistantMessage.data).toEqual({
       id: 'm1',
+      step: 0,
       text: 'cut off',
       reason: 'length',
       chunks: 1,
       reasoningChunks: 0,
+      toolCalls: [],
+      // Empty because this request carried no tools, which is the only case in
+      // which a provider wants its own reasoning left out. See `MESSAGE_RULES`.
+      reasoning: '',
     })
   })
 
@@ -205,6 +210,7 @@ describe('recordExchange', () => {
       ])
       expect(log.events.at(-1)?.data).toEqual({
         id: 'm1',
+        step: 0,
         message: 'connection reset',
         chunks: 2,
       })

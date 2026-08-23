@@ -8,7 +8,7 @@
  * @module @harness/exchange
  */
 
-export { recordExchange, replayChunks } from './exchange.ts'
+export { DEFAULT_MAX_STEPS, recordExchange, replayChunks } from './exchange.ts'
 export type { ExchangeOptions } from './exchange.ts'
 export { deriveMessages, MESSAGE_RULES } from './messages.ts'
 export type { MessageRule } from './messages.ts'
@@ -16,7 +16,14 @@ export type { MessageRule } from './messages.ts'
 // return type of `deriveMessages`, so anything that reads the projection — the
 // inspector's right-hand column, above all — needs the words for it without
 // taking a dependency on the provider adapters.
-export type { MessageRole, ModelMessage } from '@harness/llm'
+export type {
+  AssistantMessage,
+  MessageRole,
+  ModelMessage,
+  SaidMessage,
+  ToolCall,
+  ToolMessage,
+} from '@harness/llm'
 export { EXCHANGE_EVENT_TYPES } from './types.ts'
 export type {
   AssistantChunkData,
@@ -24,7 +31,12 @@ export type {
   AssistantReasoningData,
   AssistantUsageData,
   ExchangeResult,
+  LoggedToolCall,
   MessageId,
+  StepIndex,
+  StepLimitData,
   StreamErrorData,
+  ToolCallData,
+  ToolResultData,
   UserMessageData,
 } from './types.ts'

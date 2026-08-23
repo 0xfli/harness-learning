@@ -170,14 +170,51 @@ reading the log rather than by trusting an array somebody remembered to update.
 **Message rule** — the entry in `MESSAGE_RULES` that says how one event type
 contributes to the **request**. The whole answer to "what would I change to
 show the model something new?": an event type affects the request exactly when
-the table names it, and a test says so. `assistant/chunk`, `assistant/usage`
-and `error/stream` have no rule, deliberately.
+the table names it, and a test says so. `assistant/chunk`, `assistant/usage`,
+`tool/call` and `error/stream` have no rule, deliberately.
+
+**Tool** — something the model can ask the harness to do: a name, a sentence of
+description, a JSON Schema for its arguments, and an `execute`. The description
+and the schema are not documentation — they are the entire prompt the model
+gets about that tool, and rewriting a description is the most direct way to
+change what the model does. Defined in `packages/core/tools`.
+
+**Tool registry** — the set of tools a request is allowed to use. What goes out
+with every call as `tools`, and what a returned name is looked up in. An empty
+registry sends no `tools` field at all, because a provider handed an empty list
+is being told something different from a provider told nothing.
+
+**Tool call** — the model asking for one tool, by name, with arguments as a
+JSON _string_. A string rather than a parsed object all the way to the point of
+use, because that is what the wire carries, and a model that writes malformed
+JSON must be recorded as having written exactly that. Recorded as `tool/call`.
+
+**Tool result** — what the tool said, as text the model will read, plus
+`isError`. Recorded as `tool/result`. A **failing tool is a result**, not an
+exception: `runTool` never rejects, so every `tool/call` is followed by exactly
+one `tool/result` and the log stays balanced. See
+`docs/adr/0011-a-failing-tool-is-a-result.md`.
+
+**Step** — one request to the provider inside one **exchange**. An exchange
+that calls a tool holds several: step 0 asks, the tool runs, step 1 answers.
+The message id names the exchange, so the step is what tells two assistant
+replies of it apart — which is why turn keys are `assistant:<id>:<step>` and
+why `error/steps` records the step that never ran. Issue #8 makes this a state
+machine.
 
 **Model view** — the right column: the **request**, printed as the JSON that
 goes on the wire. Not a description of it — the same fold over the same events
 gives the same bytes, and that identity is measured from the adapter's argument
 through to the text on screen. Implemented in `apps/web/src/model-view.ts`; see
 `docs/adr/0006-the-model-view-is-derived.md`.
+
+**Summary** — the one line a row of the event stream shows. Chosen per event
+type by a rule table in `apps/web/src/event-summary.ts`, and it leads with what
+_differs_: the delta, the arguments, the answer. Never the message id, which is
+identical on every row of an exchange — a clipped line of it shows the reader
+the one field that cannot tell two rows apart. A type with no rule falls back
+to its payload minus the id, so a new event type is legible the day it is
+invented. The payload itself is a click away, in full.
 
 **Family** — the namespace at the front of an event type: `assistant/chunk` and
 `assistant/message` are both the `assistant` family. The unit the inspector
@@ -228,8 +265,12 @@ and thrown away with it.)
   so the browser imports the vocabulary without the filesystem.
 - `packages/core/llm` — provider vocabulary and adapters. Knows nothing about
   the log.
+- `packages/core/tools` — what the model can do besides talk: the registry, the
+  runner that turns every failure into a result, and the read-only file tools
+  behind `/fs`. Knows nothing about the log or about HTTP.
 - `packages/core/exchange` — the seam between the two: folds the log into the
-  request, runs a model, and records every delta of what it said.
+  request, runs a model, runs the tools it asked for, and records every delta
+  of what it said.
 - `packages/client/session-feed` — the replica. Knows about the feed, not about
   React.
 - `apps/dev-server` — HTTP front door. Knows about the log, not the reverse.

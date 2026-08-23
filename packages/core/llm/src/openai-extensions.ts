@@ -52,6 +52,20 @@ declare module 'openai/resources/chat/completions/completions' {
     reasoning_content?: string | null
   }
 
+  interface ChatCompletionAssistantMessageParam {
+    /**
+     * The reasoning the model produced, handed back to it.
+     *
+     * Only ever sent when the request carries `tools`, which is the case
+     * DeepSeek documents as requiring it: an intermediate assistant turn whose
+     * `reasoning_content` is missing is a 400, even when that turn called no
+     * tool. Outside tool use the same field may be omitted freely, and is.
+     *
+     * @see https://api-docs.deepseek.com/guides/thinking_mode/
+     */
+    reasoning_content?: string
+  }
+
   namespace ChatCompletionChunk {
     namespace Choice {
       interface Delta {
