@@ -80,6 +80,7 @@ export async function recordExchange(options: ExchangeOptions): Promise<Exchange
   const messages = deriveMessages(log)
 
   const deltas: string[] = []
+  const reasoning: string[] = []
   let reason = UNKNOWN_REASON
   let usage: { input: number; output: number } | undefined
 
@@ -93,6 +94,17 @@ export async function recordExchange(options: ExchangeOptions): Promise<Exchange
             text: chunk.text,
           })
           deltas.push(chunk.text)
+          break
+
+        case 'reasoning-delta':
+          // Its own event, its own counter. Recorded exactly as it streamed,
+          // and — see `MESSAGE_RULES` — never sent back.
+          log.append(EXCHANGE_EVENT_TYPES.assistantReasoning, {
+            id,
+            index: reasoning.length,
+            text: chunk.text,
+          })
+          reasoning.push(chunk.text)
           break
 
         case 'finish':
@@ -128,6 +140,7 @@ export async function recordExchange(options: ExchangeOptions): Promise<Exchange
     text: assembled,
     reason,
     chunks: deltas.length,
+    reasoningChunks: reasoning.length,
   })
 
   return {
@@ -137,6 +150,7 @@ export async function recordExchange(options: ExchangeOptions): Promise<Exchange
     text: assembled,
     reason,
     chunks: deltas.length,
+    reasoningChunks: reasoning.length,
     usage,
   }
 }

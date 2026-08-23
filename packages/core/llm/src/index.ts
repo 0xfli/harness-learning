@@ -12,13 +12,12 @@ export { createOpenAiAdapter } from './openai.ts'
 export type { OpenAiAdapterOptions } from './openai.ts'
 export { createScriptedAdapter, splitIntoDeltas } from './scripted.ts'
 export type { ScriptedAdapterOptions } from './scripted.ts'
-export { sseDataFrames } from './sse.ts'
-export type { ByteSource } from './sse.ts'
 export { ModelStreamError } from './types.ts'
 export type {
   MessageRole,
   ModelAdapter,
   ModelMessage,
+  ReasoningEffort,
   StreamChunk,
   StreamChunkType,
   StreamOptions,

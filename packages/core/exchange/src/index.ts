@@ -21,6 +21,7 @@ export { EXCHANGE_EVENT_TYPES } from './types.ts'
 export type {
   AssistantChunkData,
   AssistantMessageData,
+  AssistantReasoningData,
   AssistantUsageData,
   ExchangeResult,
   MessageId,

@@ -18,6 +18,14 @@ export const EXCHANGE_EVENT_TYPES = {
   userMessage: 'user/message',
   /** One delta, exactly as the provider emitted it. */
   assistantChunk: 'assistant/chunk',
+  /**
+   * One reasoning delta. Logged for the human, never replayed to the model.
+   *
+   * The first event type that is deliberately both: visible in the inspector,
+   * absent from `MESSAGE_RULES`. Providers reject a request that hands their
+   * own reasoning back to them, and it is not something anybody said.
+   */
+  assistantReasoning: 'assistant/reasoning',
   /** What the request cost, as the provider counted it. */
   assistantUsage: 'assistant/usage',
   /** The assembled reply. Always the last event of a successful exchange. */
@@ -45,6 +53,23 @@ export interface AssistantChunkData {
   readonly text: string
 }
 
+/**
+ * Payload of an `assistant/reasoning` event.
+ *
+ * The same shape as {@link AssistantChunkData} and deliberately a separate
+ * type: they are counted separately, so `index` means "the nth reasoning
+ * delta", not "the nth delta". A reader that conflates them gets an ordering
+ * that looks right and is not.
+ */
+export interface AssistantReasoningData {
+  /** The reply this reasoning belongs to. */
+  readonly id: MessageId
+  /** Position within the reasoning, zero-based. */
+  readonly index: number
+  /** The delta itself, unmodified. */
+  readonly text: string
+}
+
 /** Payload of an `assistant/usage` event. */
 export interface AssistantUsageData {
   readonly id: MessageId
@@ -61,6 +86,8 @@ export interface AssistantMessageData {
   readonly reason: string
   /** How many deltas were recorded, so a reader can check the run is complete. */
   readonly chunks: number
+  /** How many reasoning deltas were recorded. Zero for a model that shows none. */
+  readonly reasoningChunks: number
 }
 
 /** Payload of an `error/stream` event. */
@@ -85,6 +112,8 @@ export interface ExchangeResult {
   readonly reason: string
   /** Number of deltas recorded. */
   readonly chunks: number
+  /** Number of reasoning deltas recorded. */
+  readonly reasoningChunks: number
   /** Provider-reported usage, when it reported any. */
   readonly usage: { readonly input: number; readonly output: number } | undefined
 }

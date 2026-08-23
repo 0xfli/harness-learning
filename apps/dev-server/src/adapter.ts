@@ -11,7 +11,7 @@
  */
 
 import { createOpenAiAdapter, createScriptedAdapter } from '@harness/llm'
-import type { ModelAdapter } from '@harness/llm'
+import type { ModelAdapter, ReasoningEffort } from '@harness/llm'
 
 /** The variables that pick and configure an adapter. */
 export interface AdapterEnv {
@@ -21,6 +21,10 @@ export interface AdapterEnv {
   readonly HARNESS_MODEL?: string | undefined
   /** API root for an OpenAI-compatible provider. */
   readonly HARNESS_BASE_URL?: string | undefined
+  /** How hard the model should think: `minimal`, `low`, `medium` or `high`. */
+  readonly HARNESS_REASONING?: string | undefined
+  /** Whether the model should reason at all: `enabled` or `disabled`. */
+  readonly HARNESS_THINKING?: string | undefined
   /** Milliseconds between scripted deltas. */
   readonly HARNESS_SCRIPT_DELAY_MS?: string | undefined
 }
@@ -45,7 +49,15 @@ export function adapterFromEnv(env: AdapterEnv = process.env): ModelAdapter {
       throw new Error('HARNESS_API_KEY is set but HARNESS_MODEL is not; refusing to guess a model')
     }
     const baseUrl = nonEmpty(env.HARNESS_BASE_URL)
-    return createOpenAiAdapter({ model, apiKey, ...(baseUrl === undefined ? {} : { baseUrl }) })
+    const reasoning = reasoningFromEnv(env.HARNESS_REASONING)
+    const thinking = thinkingFromEnv(env.HARNESS_THINKING)
+    return createOpenAiAdapter({
+      model,
+      apiKey,
+      ...(baseUrl === undefined ? {} : { baseUrl }),
+      ...(reasoning === undefined ? {} : { reasoning }),
+      ...(thinking === undefined ? {} : { thinking }),
+    })
   }
 
   const configured = Number(env.HARNESS_SCRIPT_DELAY_MS)
@@ -57,4 +69,55 @@ export function adapterFromEnv(env: AdapterEnv = process.env): ModelAdapter {
 function nonEmpty(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed
+}
+
+/**
+ * The efforts some provider will accept, which is not "any string" — but is
+ * also not what any one provider accepts. See {@link ReasoningEffort}.
+ */
+const EFFORTS: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
+
+/**
+ * Read `HARNESS_REASONING`, refusing a value no provider would accept.
+ *
+ * Rejecting loudly rather than passing it through, because the alternative is
+ * a 400 from the provider on the first message of the session, blamed on the
+ * request rather than on the typo in `.env` that caused it. A value that is
+ * spelled right but wrong for *this* provider still reaches the provider, and
+ * that is the right division of labour: only it knows what it takes.
+ *
+ * @param value - the raw variable.
+ * @returns the effort, or `undefined` when unset.
+ * @throws when set to something that is not an effort.
+ */
+function reasoningFromEnv(value: string | undefined): ReasoningEffort | undefined {
+  const trimmed = nonEmpty(value)
+  if (trimmed === undefined) return undefined
+  const effort = EFFORTS.find((candidate) => candidate === trimmed)
+  if (effort === undefined) {
+    throw new Error(`HARNESS_REASONING must be one of ${EFFORTS.join(', ')}; got ${trimmed}`)
+  }
+  return effort
+}
+
+/**
+ * Read `HARNESS_THINKING`, which is a switch rather than a dial.
+ *
+ * @param value - the raw variable.
+ * @returns `enabled`, `disabled`, or `undefined` to let the model decide.
+ * @throws when set to anything else.
+ */
+function thinkingFromEnv(value: string | undefined): 'enabled' | 'disabled' | undefined {
+  const trimmed = nonEmpty(value)
+  if (trimmed === undefined) return undefined
+  if (trimmed === 'enabled' || trimmed === 'disabled') return trimmed
+  throw new Error(`HARNESS_THINKING must be enabled or disabled; got ${trimmed}`)
 }
